@@ -1,5 +1,5 @@
 # auto-generated tests from julia-repl docstrings
-using Test, GroupPresentations
+using Test, GroupPresentations, PermGroups
 function mytest(file::String,cmd::String,man::String)
   println(file," ",cmd)
   exec=repr(MIME("text/plain"),eval(Meta.parse(cmd)),context=:limit=>true)
@@ -16,7 +16,7 @@ function mytest(file::String,cmd::String,man::String)
   end
   exec==man
 end
-@testset vernose=true "GroupPresentations.jl" begin
+@testset verbose=true "GroupPresentations.jl" begin
 @test mytest("GroupPresentations.jl","@AbsWord a,b","nothing")
 @test mytest("GroupPresentations.jl","F=FpGroup([a,b])","FreeGroup(a,b)")
 @test mytest("GroupPresentations.jl","G=F/[a^2,b^7,comm(a,a^b),comm(a,a^(b^2))*inv(b^a)]","FreeGroup(a,b)/[a²,b⁷,a⁻¹b⁻¹a⁻¹bab⁻¹ab,a⁻¹b⁻²a⁻¹b²ab⁻²ab²a⁻¹b⁻¹a]")
