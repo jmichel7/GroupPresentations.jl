@@ -3398,18 +3398,6 @@ function tryconjugate(p::Presentation,tp=[0,0];info=[0,0])
   p
 end
 
-#function Gapjm.gap(p::Presentation)
-#  t=p
-#  s="F:=FreeGroup($(length(t.generators)));\n"
-#  s*="F.relators:=["
-#  s*=join(map(t.relators)do r
-#      join(map(r)do i
-#        i>0 ? string("F.",i) : string("F.",-i,"^-1")
-#      end,"*")
-#          end,",")*"];\n"
-#  s*"PresentationFpGroup(F);\n"
-#end
-
 p1=Presentation(
 [[1, 1], [7, 7], [3, 3], [6, 6], [8, 8], [4, 4], [6, 2, 3], [4, -2, 1], [7, 4,
  2], [3, 5, 2], [5, 1, 2], [3, 1, -2], [-2, -2, -2], [3, -2, 4], [1, 3, 2],
