@@ -4,7 +4,7 @@ This  is a  port of  some GAP3/VkCurve  functionality on *presentations* of
 
 We  have defined just enough functionality  on finitely presented groups so
 that  presentations  can  be  translated  to  finitely presented groups and
-vice-versa. The focus is on presentations, the goal being to simplify them.
+vice-versa. The focus is on presentations, the aim is to simplify them.
 
 The  elements of finitely presented groups are `AbsWord` or abstract words,
 representing elements of a free group. 
