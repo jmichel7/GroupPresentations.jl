@@ -73,9 +73,6 @@ for  more  information  look  at  the  help  strings  of `AbsWord, FpGroup, Pres
 
 A  minimal thing to add to this package so it would be a reasonable package for finitely preented groups is the Coxeter-Todd algorithm.
 
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L1-L64' class='documenter-source'>source</a><br>
-
 <a id='GroupPresentations.AbsWord' href='#GroupPresentations.AbsWord'>#</a>
 **`GroupPresentations.AbsWord`** &mdash; *Type*.
 
@@ -99,18 +96,12 @@ julia> AbsWord(:b,:a,:a,:b)
 ba²b
 ```
 
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L151-L169' class='documenter-source'>source</a><br>
-
 <a id='GroupPresentations.@AbsWord' href='#GroupPresentations.@AbsWord'>#</a>
 **`GroupPresentations.@AbsWord`** &mdash; *Macro*.
 
 
 
 `@AbsWord x,y` is the same as `x=AbsWord(:x);y=AbsWord(y)`
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L193' class='documenter-source'>source</a><br>
 
 <a id='GroupPresentations.FpGroup' href='#GroupPresentations.FpGroup'>#</a>
 **`GroupPresentations.FpGroup`** &mdash; *Type*.
@@ -120,9 +111,6 @@ ba²b
 `FpGroup(P::Presentation)`
 
 returns the finitely presented group defined  by the presentation `P`.
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L349-L353' class='documenter-source'>source</a><br>
 
 <a id='GroupPresentations.Presentation-Tuple{FpGroup}' href='#GroupPresentations.Presentation-Tuple{FpGroup}'>#</a>
 **`GroupPresentations.Presentation`** &mdash; *Method*.
@@ -135,18 +123,12 @@ returns  the  presentation  corresponding  to  the given finitely presented grou
 
 The  optional `debug` parameter  can be used  to restrict or  to extend the amount  of output  provided by  Tietze transformation  functions when being applied  to the created  presentation. The default  value 1 is designed for interactive  use and implies  explicit messages to  be displayed by most of these functions. A `debug` value of 0 will suppress these messages, whereas a `debug` value of 2 will enforce some additional output.
 
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L399-L411' class='documenter-source'>source</a><br>
-
 <a id='GroupPresentations.relators' href='#GroupPresentations.relators'>#</a>
 **`GroupPresentations.relators`** &mdash; *Function*.
 
 
 
 `relators(P::Presentation)` relators of `P` as `AbsWord`s. 
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L346' class='documenter-source'>source</a><br>
 
 <a id='GroupPresentations.showgens' href='#GroupPresentations.showgens'>#</a>
 **`GroupPresentations.showgens`** &mdash; *Function*.
@@ -156,9 +138,6 @@ The  optional `debug` parameter  can be used  to restrict or  to extend the amou
 `showgens(P,list=eachindex(P.generators))`
 
 prints  the generators of `P` with the total number of their occurrences in the  relators, and notes involutions. A  second `list` argument prints only those generators.
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L534-L540' class='documenter-source'>source</a><br>
 
 <a id='GroupPresentations.simplify' href='#GroupPresentations.simplify'>#</a>
 **`GroupPresentations.simplify`** &mdash; *Function*.
@@ -197,9 +176,6 @@ julia> P=Presentation(G,0);simplify(P);FpGroup(P)
 ```
 
 which applies  a rather simple-minded strategy of  Tietze transformations to the intermediate presentation `P`. If for  some  concrete group the resulting presentation  is unsatisfying, then  you  should  try  a  more  sophisticated,  interactive  use of  the available Tietze transformation functions  (see "Tietze Transformations").
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L1206-L1247' class='documenter-source'>source</a><br>
 
 
 `simplify(p [,tries])`
@@ -258,9 +234,6 @@ julia> display_balanced(p)
 14: caDCbdBcADbda=bDBaDbADcbadc
 ```
 
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L3114-L3177' class='documenter-source'>source</a><br>
-
 <a id='GroupPresentations.conjugate' href='#GroupPresentations.conjugate'>#</a>
 **`GroupPresentations.conjugate`** &mdash; *Function*.
 
@@ -282,9 +255,6 @@ julia> display_balanced(conjugate(P,"Cdc"))
 2: abdcab=cabdca
 3: bdcabd=cabdca
 ```
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L3216-L3237' class='documenter-source'>source</a><br>
 
 <a id='GroupPresentations.tryconjugate' href='#GroupPresentations.tryconjugate'>#</a>
 **`GroupPresentations.tryconjugate`** &mdash; *Function*.
@@ -372,7 +342,4 @@ julia> display_balanced(p)
 6: cdcd=dcdc
 7: AdCacd=cAdCac
 ```
-
-
-<a target='_blank' href='https://github.com/jmichel7/GroupPresentations.jl/blob/337c305da0d7acf6f74dad4142328a66faf71985/src/GroupPresentations.jl#L3257-L3349' class='documenter-source'>source</a><br>
 

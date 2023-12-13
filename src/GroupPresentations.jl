@@ -7,13 +7,39 @@ that  presentations  can  be  translated  to  finitely presented groups and
 vice-versa. The focus is on presentations, the goal being to simplify them.
 
 The  elements of finitely presented groups are `AbsWord` or abstract words,
-representing elements of a free group. In order to speed up the algorithms,
-the   relators  in  a  presentation   are  not  represented  internally  by
-`AbsWord`s, but by lists of positive or negative generator numbers which we
-call *Tietze words*.
+representing elements of a free group. 
 
 ```julia-repl
-julia> @AbsWord a,b # same as a=AbsWord(:a);b=AbsWord(:b)
+julia> @AbsWord a,b,c,d,e,f # same as a=AbsWord(:a);b=AbsWord(:b)...
+
+julia> F=FpGroup([a,b,c,d,e,f])
+FreeGroup(a,b,c,d,e,f)
+
+julia> G=F/[a^2,b^2,d*f^-1,e^2,f^2,a*b^-1*c,a*e*c^-1,b*d^-1*c,c*d*e^-1,a*f*c^-2,c^4]
+FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻¹,e²,f²,ab⁻¹c,aec⁻¹,bd⁻¹c,cde⁻¹,afc⁻²,c⁴]
+
+julia> simplify(F) # the main function of this package
+Presentation: 2 generators, 4 relators, total length 16
+Presentation: 2 generators, 3 relators, total length 10
+FreeGroup(a,c)/[a²,ac⁻¹ac⁻¹,c⁴]
+```
+
+The simplification is done by the following process:
+
+```julia-rep1
+julia> P=Presentation(G);simplify(P);G=FpGroup(P)
+```
+
+The  functions `Presentation`  and `FpGroup`  create a  presentation from a
+finitely presented group and vice versa.
+
+In order to speed up the algorithms, the relators in a presentation are not
+represented  internally by `AbsWord`s, but by lists of positive or negative
+generator  numbers which  we call  *Tietze words*.  Here is another example
+with a few functions to explore presentations.
+
+```julia-repl
+julia> @AbsWord a,b 
 
 julia> F=FpGroup([a,b])
 FreeGroup(a,b)
@@ -50,10 +76,16 @@ julia> display_balanced(P)
 2: bbbbbbb=1
 3: aBab=BAbA
 4: BBabbaBBabbaB=1
-```
 
-The  functions `Presentation`  and `FpGroup`  create a  presentation from a
-finitely presented group and vice versa.
+julia> P=tryconjugate(P) # try to conjugate the generators
+Presentation: 2 generators, 4 relators, total length 30
+Bab=> Presentation: 2 generators, 3 relators, total length 28
+# Bab gives Presentation: 2 generators, 3 relators, total length 28
+Presentation: 2 generators, 3 relators, total length 28
+
+julia> FpGroup(P) # slightly simplified group
+FreeGroup(a,b)/[b⁷,bab⁻¹abab⁻¹a,b⁻¹ab²ab⁻²ab²ab⁻²]
+```
 
 for  more  information  look  at  the  help  strings  of `AbsWord, FpGroup,
 Presentation,     relators,    display_balanced,    simplify,    conjugate,
