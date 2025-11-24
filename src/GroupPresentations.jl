@@ -6,8 +6,10 @@ We  have defined just enough functionality  on finitely presented groups so
 that  presentations  can  be  translated  to  finitely presented groups and
 vice-versa. The focus is on presentations, the aim is to simplify them.
 
-The  elements of finitely presented groups are `AbsWord` or abstract words,
-representing elements of a free group. 
+This package depends on `PermGroups`.
+
+The elements of finitely presented groups are [`AbsWord`](@ref) or abstract
+words, representing elements of a free group.
 
 ```julia-repl
 julia> @AbsWord a,b,c,d,e,f # same as a=AbsWord(:a);b=AbsWord(:b)...
@@ -30,8 +32,8 @@ The simplification is done by the following process:
 julia> P=Presentation(G);simplify(P);G=FpGroup(P)
 ```
 
-The  functions `Presentation`  and `FpGroup`  create a  presentation from a
-finitely presented group and vice versa.
+The   functions  [`Presentation`](@ref)  and   [`FpGroup`](@ref)  create  a
+presentation from a finitely presented group and vice versa.
 
 In order to speed up the algorithms, the relators in a presentation are not
 represented  internally by `AbsWord`s, but by lists of positive or negative
@@ -87,12 +89,18 @@ julia> FpGroup(P) # slightly simplified group
 FreeGroup(a,b)/[b⁷,bab⁻¹abab⁻¹a,b⁻¹ab²ab⁻²ab²ab⁻²]
 ```
 
-for  more  information  look  at  the  help  strings  of `AbsWord, FpGroup,
-Presentation,     relators,    display_balanced,    simplify,    conjugate,
-tryconjugate`. 
+for  more  information  look  at
+[`AbsWord`](@ref),
+[`FpGroup`](@ref),
+[`Presentation`](@ref),
+[`relators`](@ref),
+[`display_balanced`](@ref),
+[`simplify`](@ref),
+[`conjugate`](@ref),
+[`tryconjugate`](@ref).
 
-A  minimal thing to add to this package so it would be a reasonable package
-for finitely preented groups is the Coxeter-Todd algorithm.
+A  future addition to this package which would make it a reasonable package
+for finitely presented groups is the Coxeter-Todd algorithm.
 """
 module GroupPresentations
 ## Changing Presentations
@@ -547,6 +555,33 @@ function Base.dump(T::Presentation)
   if l1!=l display(stack(map(i->[T.generators[i],T[i],T[-i]],l))) end
 end
 
+"""
+`display_balanced(p)`
+
+Tries  to display the  presentation `p` as  equalities between words of the
+same length.
+
+```julia-rep1
+julia> relators(p)
+7-element Vector{AbsWord}:
+ dbd⁻¹b⁻¹
+ bab⁻¹a⁻¹
+ caca⁻¹c⁻¹a⁻¹
+ adad⁻¹a⁻¹d⁻¹
+ bcbc⁻¹b⁻¹c⁻¹
+ cdcdc⁻¹d⁻¹c⁻¹d⁻¹
+ a⁻¹dc⁻¹acdc⁻¹a⁻¹cd⁻¹ac⁻¹
+
+julia> display_balanced(p)
+1: db=bd
+2: ba=ab
+3: cac=aca
+4: ada=dad
+5: bcb=cbc
+6: cdcd=dcdc
+7: AdCacd=cAdCac
+```
+"""
 function display_balanced(T,dumb=false)
   f(i,w)=vcat(w,w)[i:i+div(length(w),2)-1]
   used=Set{Int}();for x in T.relators, y in x push!(used,abs(y)) end
