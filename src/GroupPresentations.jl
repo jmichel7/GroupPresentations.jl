@@ -88,7 +88,6 @@ Presentation: 2 generators, 3 relators, total length 28
 julia> FpGroup(P) # slightly simplified group
 FreeGroup(a,b)/[b⁷,bab⁻¹abab⁻¹a,b⁻¹ab²ab⁻²ab²ab⁻²]
 ```
-
 for  more  information  look  at
 [`AbsWord`](@ref),
 [`FpGroup`](@ref),
@@ -99,8 +98,27 @@ for  more  information  look  at
 [`conjugate`](@ref),
 [`tryconjugate`](@ref).
 
-A  future addition to this package which would make it a reasonable package
-for finitely presented groups is the Coxeter-Todd algorithm.
+Finally,  if you have the packages GAP and Chevie installed (and used), the
+functions `length` and and `elements` are defined for `FpGroup`s (this uses
+GAP's Coxeter-Todd algorithm).
+```julia-rep1
+julia> @AbsWord a,b
+
+julia> G=FpGroup([a,b])/[a^2,b^2,(a*b)^3]
+FreeGroup(a,b)/[a²,b²,ababab]
+
+julia> length(G)
+6
+
+julia> elements(G)
+6-element Vector{AbsWord}:
+ .
+ b
+ ba
+ a
+ ab
+ aba
+```
 """
 module GroupPresentations
 ## Changing Presentations
@@ -295,14 +313,14 @@ end
 
 Base.getindex(w::AbsWord,i::AbstractVector{<:Integer})=AbsWord(getindex.(Ref(w),i))
 #-------------------------- FpGroups -----------------------------
-struct FpGroup <: Group{AbsWord}
+@GapObj struct FpGroup <: Group{AbsWord}
   gens::Vector{AbsWord}
   rels::Vector{AbsWord}
 end
 
-FpGroup(gens::Vector{AbsWord})=FpGroup(gens,AbsWord[])
+FpGroup(gens::Vector{AbsWord})=FpGroup(gens,AbsWord[],Dict{Symbol,Any}())
 
-FpGroup(s::Symbol...)=FpGroup(AbsWord.(collect(s)),AbsWord[])
+FpGroup(s::Symbol...)=FpGroup(AbsWord.(collect(s)),AbsWord[],Dict{Symbol,Any}())
 
 function Base.show(io::IO,G::FpGroup)
   print(io,"FreeGroup(",join(gens(G),","),")")
@@ -310,8 +328,7 @@ function Base.show(io::IO,G::FpGroup)
 end
 
 function Base.:/(G::FpGroup,rel::Vector{AbsWord})
-  append!(G.rels,rel)
-  G
+  FpGroup(G.gens,vcat(G.rels,rel),Dict{Symbol,Any}())
 end
 
 # Tietze word from AbsWord
@@ -330,11 +347,15 @@ function Groups.word(G::FpGroup,w::AbsWord)
 end
 
 function Groups.elements(F::FpGroup,i)
-  l1=map(x->x.d[1],gens(F))
-  l=map(x->x[1]=>-x[2],l1)
-  l=vcat(l,l1)
-  res=AbsWord.(collect.(Iterators.product(fill(l,i)...)))
-  filter(x->length(x)==i,res)
+  if isempty(F.rels)
+    l1=map(x->x.d[1],gens(F))
+    l=map(x->x[1]=>-x[2],l1)
+    l=vcat(l,l1)
+    res=AbsWord.(collect.(Iterators.product(fill(l,i)...)))
+    filter(x->length(x)==i,res)
+  else
+    filter(x->length(x)==i,elements(F))
+  end
 end
 
 #--------------------------  Tietze words and structs -------------
@@ -395,7 +416,7 @@ function FpGroup(P::Presentation)
   debug(P,3,"# converting presentation to FpGroup")
   if P.numredunds>0 RemoveGenerators(P) end
   sort!(P)
-  G=FpGroup(deepcopy(P.generators),relators(P))
+  G=FpGroup(deepcopy(P.generators),relators(P),Dict{Symbol,Any}())
   if haskey(P, :imagesOldGens)
     G.imagesOldGens=deepcopy(P.imagesOldGens)
   end
