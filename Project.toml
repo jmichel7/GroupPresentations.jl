@@ -7,6 +7,12 @@ version = "0.1.1"
 Combinat = "a6b051d1-fc4b-4ede-b53e-347fa9fb9a74"
 PermGroups = "0b63354f-98d5-4b2f-8b91-7408084ca26b"
 
+[weakdeps]
+GAP = "c863536a-3901-11e9-33e7-d5cd0df7b904"
+
+[extensions]
+Gap4 = "GAP"
+
 [compat]
 Combinat = "0.1"
 PermGroups = "0.2.14, 0.3"

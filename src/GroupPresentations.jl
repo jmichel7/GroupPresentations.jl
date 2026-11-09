@@ -98,9 +98,9 @@ for  more  information  look  at
 [`conjugate`](@ref),
 [`tryconjugate`](@ref).
 
-Finally,  if you have the packages GAP and Chevie installed (and used), the
-functions `length` and and `elements` are defined for `FpGroup`s (this uses
-GAP's Coxeter-Todd algorithm).
+Finally,  if you have the packages GAP and PermGroups installed (and used),
+the  functions `length` and and `elements` are defined for `FpGroup`s (this
+uses GAP's Coxeter-Todd algorithm).
 ```julia-rep1
 julia> @AbsWord a,b
 
