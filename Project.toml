@@ -11,7 +11,7 @@ PermGroups = "0b63354f-98d5-4b2f-8b91-7408084ca26b"
 GAP = "c863536a-3901-11e9-33e7-d5cd0df7b904"
 
 [extensions]
-Gap4 = "GAP"
+Gap4GP = "GAP"
 
 [compat]
 Combinat = "0.1"

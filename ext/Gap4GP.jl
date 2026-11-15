@@ -1,4 +1,4 @@
-module Gap4
+module Gap4GP
 
 using GAP, GroupPresentations, PermGroups
 
@@ -18,18 +18,12 @@ function GAP.Obj(g::FpGroup)
   end
 end
 
-function Base.length(g::FpGroup)
-  get!(g,:length)do
-    GAP.Globals.Size(GAP.Obj(g))
-  end
-end
+length(g::FpGroup)=GAP.Globals.Size(GAP.Obj(g))
 
-function Groups.elements(g::FpGroup)
-  get!(g,:elements)do
-    l=collect(GAP.Globals.Elements(GAP.Obj(g)))
-    l=collect.(GAP.Globals.ExtRepOfObj.(l))
-    map(w->prod(x->g.gens[x[1]]^x[2],Iterators.partition(w,2);init=one(g)),l)
-  end
+function elements(g::FpGroup)
+  l=collect(GAP.Globals.Elements(GAP.Obj(g)))
+  l=collect.(GAP.Globals.ExtRepOfObj.(l))
+  map(w->prod(x->g.gens[x[1]]^x[2],Iterators.partition(w,2);init=one(g)),l)
 end
 
 end

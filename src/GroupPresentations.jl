@@ -78,15 +78,6 @@ julia> display_balanced(P)
 2: bbbbbbb=1
 3: aBab=BAbA
 4: BBabbaBBabbaB=1
-
-julia> P=tryconjugate(P) # try to conjugate the generators
-Presentation: 2 generators, 4 relators, total length 30
-Bab=> Presentation: 2 generators, 3 relators, total length 28
-# Bab gives Presentation: 2 generators, 3 relators, total length 28
-Presentation: 2 generators, 3 relators, total length 28
-
-julia> FpGroup(P) # slightly simplified group
-FreeGroup(a,b)/[b⁷,bab⁻¹abab⁻¹a,b⁻¹ab²ab⁻²ab²ab⁻²]
 ```
 for  more  information  look  at
 [`AbsWord`](@ref),
@@ -246,7 +237,7 @@ struct AbsWord
   end
 end
 
-AbsWord(x::Symbol...)=AbsWord([s=>1 for s in x])
+AbsWord(x::Symbol...)=isempty(x) ? AbsWord("") : AbsWord([s=>1 for s in x])
 
 "`@AbsWord x,y` is the same as `x=AbsWord(:x);y=AbsWord(y)`"
 macro AbsWord(t) 
@@ -294,6 +285,7 @@ Base.:\(a::AbsWord, b::AbsWord)=inv(a)*b
 Base.length(a::AbsWord)=sum(x->abs(last(x)),a.d;init=0)
 Base.copy(a::AbsWord)=AbsWord(copy(a.d))
 Base.:(==)(a::AbsWord,b::AbsWord)=a.d==b.d
+Base.hash(a::AbsWord,h::UInt)=hash(a.d,h)
 
 "returns symbol for an AbsWord of length 1"
 function mon(w::AbsWord)
@@ -302,6 +294,7 @@ function mon(w::AbsWord)
 end
 
 function Base.getindex(w::AbsWord,i::Integer)
+  if i<=0 error("index out of bounds") end
   for (s,n) in w.d
     if i>abs(n) i-=abs(n)
     elseif n<0 return s=>-1
@@ -346,8 +339,30 @@ function Groups.word(G::FpGroup,w::AbsWord)
   res
 end
 
+function Base.length(F::FpGroup)
+  get!(F,:length)do
+    if isempty(F.rels) error("infinite") end
+    m=Base.get_extension(GroupPresentations,:Gap4GP)
+    if isnothing(m)
+      error("'length' needs GAP; do 'using GAP' to make extension available") 
+    end
+    m.length(F)
+  end
+end
+
+function Groups.elements(F::FpGroup)
+  get!(g,:elements)do
+    m=Base.get_extension(GroupPresentations,:Gap4GP)
+    if isnothing(m)
+      error("'elements' needs GAP; do 'using GAP' to make extension available") 
+    end
+    m.elements(F)
+  end
+end
+
 function Groups.elements(F::FpGroup,i)
   if isempty(F.rels)
+    if i==0 return AbsWord() end
     l1=map(x->x.d[1],gens(F))
     l=map(x->x[1]=>-x[2],l1)
     l=vcat(l,l1)
@@ -451,7 +466,9 @@ end
 
 function Presentation(v::Vector{Vector{Int}})
   gens=sort(unique(abs(x) for r in v for x in r))
-  if length(gens)!=maximum(gens) error("hummm!") end
+  if isempty(gens) return Presentation(AbsWord[],AbsWord[]) end
+  g=setdiff(1:maximum(gens),gens)
+  if !isempty(g) error("generators $g missing") end
   vars=length(gens)<=26 ? Symbol.('a':'a'+length(gens)-1) :
       map(i->Symbol("x",stringind(rio(),i)),1:length(gens))
   Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v))
@@ -470,19 +487,20 @@ interactive  use and implies  explicit messages to  be displayed by most of
 these functions. A `debug` value of 0 will suppress these messages, whereas
 a `debug` value of 2 will enforce some additional output.
 """
-Presentation(G::FpGroup,printlevel::Integer=1)=Presentation(G.gens,G.rels)
+Presentation(G::FpGroup,debug::Integer=1)=Presentation(G.gens,G.rels,debug)
 
 # takes as input the output of display_balanced
-function Presentation(s::String;level=1)
+function Presentation(s::String;debug=1)
   s=replace(s,r"\n\s*="=>"=")
   l=split(s,"\n")
   l=map(s->replace(s,r"^ *[0-9]*: *"=>""),l)
   l=filter(x->match(r"^ *$",x)===nothing,l)
   rels=AbsWord.(l)
   l=map(x->first.(x.d),rels)
+  if isempty(l) return Presentation(AbsWord[],AbsWord[],debug) end
   atoms=length(l)==1 ? unique(l[1]) : union(map(x->first.(x.d),rels)...)
   sort!(atoms)
-  Presentation(AbsWord.(atoms),rels,level)
+  Presentation(AbsWord.(atoms),rels,debug)
 end
 
 Base.getindex(T::Presentation,i)=T.inverses[length(T.generators)+1-i]
@@ -533,6 +551,10 @@ end
 function debug(P,i,arg...)
   if P.debug>=i println("#",arg...) end
 end
+
+include("toddcoxeter.jl")
+PermGroups.PermGroup(p::Presentation;opt...)=toddcoxeter(p.relators;opt...)
+PermGroups.PermGroup(F::FpGroup;opt...)=PermGroup(Presentation(F);opt...)
 
 """
 `PrintStatus(P::Presentation)`
@@ -639,14 +661,14 @@ function showgens(T::Presentation,list=eachindex(T.generators))
 end
 
 """
-`show_pairs(P,n=10)`
+`show_pairs(P;n=10)`
 
 shows  the  `n`  most  frequently  occurring squarefree relator subwords of
 length 2 with their number of occurrences.`n=0` is interpreted as infinity.
 
 This  is  useful  information  in  the context of the `Substitute` command.
 """
-function show_pairs(P::Presentation,n::Integer=10)
+function show_pairs(P::Presentation;n::Integer=10)
   for (m,(num,i,j,k)) in enumerate(MostFrequentPairs(P,n))
     geni=P.generators[i];if k>1 geni=inv(geni) end
     genj=P.generators[j];if isodd(k) genj=inv(genj) end
@@ -719,9 +741,10 @@ routines.  You should not call it.  Instead, you should call the function
 """
 function NewGenerator(P::Presentation)
   new=P.nextFree
-  while true
+  gen=AbsWord(Symbol("_x",new))
+  while gen in P.generators
+    new+=1
     gen=AbsWord(Symbol("_x",new))
-    if gen in P.generators new+=1;continue end
   end
   P.nextFree=new+1
   push!(P.generators,gen)
@@ -1419,10 +1442,12 @@ function SubstituteGen(T::Presentation, gen, w)
     end
     if occ>0 T.flags[i]=1 end
     if length(res)==2 && allequal(res) T.relators[i]=res
-    else T.relators[i]=reduceword(res,T)
+    else T.relators[i]=reduceword(res)
     end
   end
   UpdateGeneratorImages(T, abs(gen), gen<0 ? iw : w)
+  g=abs(gen)
+  if T[-g]==g && w!=[g] T[-g]=-g end
 end
 
 """
@@ -1442,8 +1467,8 @@ function EliminateGen(P::Presentation, num::Int)
   end
   occTotal,occRelNum,occMult=Occurrences(P, num)
   if occMult==1
-    length=length(P.relators[occRelNum])
-    space=(occTotal-1)*(length-1)-length
+    lg=length(P.relators[occRelNum])
+    space=(occTotal-1)*(lg-1)-lg
     if P.lengthLimit!=0 && sum(length,P.relators)+space>spacelimit return end
     gen=num
     rel=P.relators[occRelNum]
@@ -2641,7 +2666,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
 79: jrglql=mGMJRG
 80: bhgMjmg=dFLfDBh
 81: kMjmKrkMj=RkMJmKRkM
-82: jmgMjmgMjm=mGMJmGMJmG
+82: jmgMjmgMjm=mGMJmGMJmG")
 |    gap> GoGo( P );
     &I  there are 3 generators and 47 relators of total length 1368
     &I  there are 2 generators and 46 relators of total length 3773
@@ -3334,6 +3359,7 @@ function conjugate(p::Presentation, s)
     error("not all gens in a-z") end
     minmaj=vcat(map(x->x[1],l),map(x->uppercase(x[1]),l))
     s=map(c->findfirst(==(c),minmaj),collect(s))
+    if nothing in s error("letter not in presentation") end
     s=map(x->x>length(l) ? length(l)-x : x,s)
   end
   if length(s)!=3 || s[1]!=-s[3] error("should be conjugate like abA") end
@@ -3343,7 +3369,7 @@ function conjugate(p::Presentation, s)
 end
 
 """
-`tryconjugate(p[,goal[,printlevel]])`
+`tryconjugate(p;goal=[0,0],info=[0,0])`
 
 This program tries to simplify group presentations by applying conjugations
 to  the  generators.  The  algorithm  depends  on  random  numbers,  and on
@@ -3435,7 +3461,7 @@ julia> display_balanced(p)
 7: AdCacd=cAdCac
 ```
 """
-function tryconjugate(p::Presentation,tp=[0,0];info=[0,0])
+function tryconjugate(p::Presentation;goal=[0,0],info=[0,0])
   perf(p)=[length(p.relators), sum(length,p.relators)]
   function triples(p)
     res=Vector{Int}[]
@@ -3454,7 +3480,7 @@ function tryconjugate(p::Presentation,tp=[0,0];info=[0,0])
   end
   p=deepcopy(p)
   GoGo(p)
-  if iszero(tp) tp=perf(p) end
+  if iszero(goal) goal=perf(p) end
   p1=[]
   for c in triples(p)
     print(alphab(c),"=> ")
@@ -3463,7 +3489,7 @@ function tryconjugate(p::Presentation,tp=[0,0];info=[0,0])
       println("# ",alphab(c)," gives rels/len ", perf(n))
       display_balanced(n)
     end
-    if perf(n)<tp
+    if perf(n)<goal
       println("# ",alphab(c)," gives ",n)
       return n
     end
@@ -3477,7 +3503,7 @@ function tryconjugate(p::Presentation,tp=[0,0];info=[0,0])
       println("# ",alphab(p2[1]),"->",alphab(c)," gives rels/len ", perf(n))
       display_balanced(n)
     end
-    if perf(n)<tp
+    if perf(n)<goal
       println("# ",alphab(p2[1]),"->",alphab(c)," gives ",n)
       return n
     end
