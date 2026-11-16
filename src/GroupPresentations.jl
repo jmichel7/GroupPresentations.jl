@@ -1428,9 +1428,21 @@ function Eliminate(T::Presentation,n=nothing)
   end
 end
 
+# Generator  i is  recorded as  an involution  by T[i]==T[-i]==i  (see also
+# RemoveRelator,  which  clears  the  record  when  the  relator  [i,i]  is
+# removed).  The only thing that justifies the record is such a relator, so
+# it  has to be forgotten whenever that relator is rewritten into something
+# else.
+function ForgetInvolution(T::Presentation,i::Integer)
+  if i<0 i=-i end
+  if T[i]==i && T[-i]==i T[-i]=-i end
+  T
+end
+
 # substitute gen by w
 function SubstituteGen(T::Presentation, gen, w)
   iw=-reverse(w)
+  ForgetInvolution(T,gen)
   for i in eachindex(T.relators)
     res=Int[]
     occ=0
@@ -1442,12 +1454,10 @@ function SubstituteGen(T::Presentation, gen, w)
     end
     if occ>0 T.flags[i]=1 end
     if length(res)==2 && allequal(res) T.relators[i]=res
-    else T.relators[i]=reduceword(res)
+    else T.relators[i]=reduceword(res,T)
     end
   end
   UpdateGeneratorImages(T, abs(gen), gen<0 ? iw : w)
-  g=abs(gen)
-  if T[-g]==g && w!=[g] T[-g]=-g end
 end
 
 """
@@ -3462,7 +3472,7 @@ julia> display_balanced(p)
 ```
 """
 function tryconjugate(p::Presentation;goal=[0,0],info=[0,0])
-  perf(p)=[length(p.relators), sum(length,p.relators)]
+  perf(p)=[length(p.relators), sum(length,p.relators;init=0)]
   function triples(p)
     res=Vector{Int}[]
     for v in p.relators, i in 1:length(v)-2
