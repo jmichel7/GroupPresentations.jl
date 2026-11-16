@@ -265,6 +265,29 @@ function AbsWord(s::AbstractString)
   AbsWord(res)
 end
 
+"returns symbol for an AbsWord of length 1"
+function mon(w::AbsWord)
+  if length(w.d)!=1 || last(w.d[1])!=1 error("not a generator") end
+  first(w.d[1])
+end
+
+"""
+`AbsWord(word::Vector{Int}, gens::Vector{AbsWord})`
+`AbsWord(word::Vector{Int}, gens::Vector{Symbol})`
+
+Tranforms Tietze word `word` to an absword, using given generators `gens`.
+
+```julia-repl
+julia> AbsWord([-1,-2,1,-3,-3],AbsWord.([:a,:b,:c]))
+a⁻¹b⁻¹ac⁻²
+
+julia> AbsWord([-1,-2,1,-3,-3],[:a,:b,:c])
+a⁻¹b⁻¹ac⁻²
+```
+"""
+AbsWord(tz::Vector{Int},gens::Vector{AbsWord})=AbsWord(tz,mon.(gens))
+AbsWord(tz::Vector{Int},ss::Vector{Symbol})=AbsWord(map(i->ss[abs(i)]=>sign(i),tz))
+
 function Base.show(io::IO,a::AbsWord)
   if isone(a) print(io,".") end
   for (s,c) in a.d
@@ -286,12 +309,6 @@ Base.length(a::AbsWord)=sum(x->abs(last(x)),a.d;init=0)
 Base.copy(a::AbsWord)=AbsWord(copy(a.d))
 Base.:(==)(a::AbsWord,b::AbsWord)=a.d==b.d
 Base.hash(a::AbsWord,h::UInt)=hash(a.d,h)
-
-"returns symbol for an AbsWord of length 1"
-function mon(w::AbsWord)
-  if length(w.d)!=1 || last(w.d[1])!=1 error("not a generator") end
-  first(w.d[1])
-end
 
 function Base.getindex(w::AbsWord,i::Integer)
   if i<=0 error("index out of bounds") end
@@ -566,8 +583,8 @@ relators.
 The  printing is suppressed if  none of the three  values has changed since
 the last call.
 """
-function PrintStatus(P::Presentation,level=0)
-  if P.debug<level return end
+function PrintStatus(P::Presentation,debug=0)
+  if P.debug<debug return end
   status=[length(P.generators)-P.numredunds, length(P.relators), 
           sum(length,P.relators;init=0)]
   if !haskey(P,:status) || status!=P.status
@@ -676,19 +693,6 @@ function show_pairs(P::Presentation;n::Integer=10)
   end
 end
 
-"""
-`AbsWord(word, generators)`
-
-Tranforms Tietze word `word` to an absword, using given generators `gens`.
-
-```julia-repl
-julia> AbsWord([-1,-2,1,-3,-3],AbsWord.([:a,:b,:c]))
-a⁻¹b⁻¹ac⁻²
-```
-"""
-AbsWord(tz::Vector{Int},gens::Vector{AbsWord})=AbsWord(tz,mon.(gens))
-AbsWord(tz::Vector{Int},ss::Vector{Symbol})=AbsWord(map(i->ss[abs(i)]=>sign(i),tz))
-
 (P::Presentation)(l::Int...)=AbsWord(collect(l),P.generators)
 
 """
@@ -748,7 +752,7 @@ function NewGenerator(P::Presentation)
   end
   P.nextFree=new+1
   push!(P.generators,gen)
-  P.inverses=vcat([length(P.generators)],P.inverses,[-length(P.generators)])
+  P.inverses=vcat(length(P.generators),P.inverses,-length(P.generators))
   gen
 end
 
@@ -1751,7 +1755,7 @@ generators.
 
 If  `Go`  succeeds  in  reducing  the  number  of generators, the number of
 relators,  or the total  length of all  relators, then it  displays the new
-status  before returning (provided that you did  not set the print level to
+status  before returning (provided that you did  not set debug to
 zero).  However, it does not  provide any output if  all these three values
 have  remained unchanged,  even if  the `SearchEqual`  command involved has
 changed  the  presentation  such  that  another  call of `Go` might provide
@@ -1807,8 +1811,6 @@ As an example  we  compute  a presentation of a  subgroup of index 408 in
     34: ac=bb
     35: cB=bC
     36: aca=CAC
-    gap> P.primaryGeneratorWords;
-    [ b, a*b*a ]
     gap> P.protected := 2;;
     gap> P.debug := 2;;
     gap> simplify( P );
@@ -1961,7 +1963,7 @@ function MostFrequentPairs(T::Presentation, nmax::Int)
   else
     for i in 1:numgens-1
       occlist=OccurrencesPairs(T, i)
-      for j=i+1:numgens, k in 1:4
+      for j in i+1:numgens, k in 1:4
         if occlist[k,j]>0
           n+=1
           if length(pairs)==n-1 push!(pairs,[occlist[k,j], i, j, k-1])
@@ -2767,7 +2769,7 @@ function Substitute(P::Presentation,n::Int=1,elim::Int=0)
   if length(T.generators)<2 return end
   pairs=MostFrequentPairs(P, n)
   if length(pairs)<n
-    debug(P,1,"Substitute nbpairs $n is out of range")
+    debug(P,1,"Substitute: there are less than $n pairs available")
     return
   end
   m,i,j,k=pairs[n]
@@ -2779,10 +2781,10 @@ function Substitute(P::Presentation,n::Int=1,elim::Int=0)
   debug(P,1,"Substitute new generator ",gen," defined by ", word)
   AddRelator(P,inv(gen)*word)
   UpdateGeneratorImages(P, pair)
-  printlevel=P.debug;P.debug=0;Search(P);
+  debug=P.debug;P.debug=0;Search(P);
   P.debug=2
   if elim>0 EliminateGen(P, abs(pair[elim])) else EliminateGen1(P) end
-  P.debug=printlevel
+  P.debug=debug
   if T.modified Search(P) end
   if T.numredunds>0 RemoveGenerators(P) end
   PrintStatus(P,1)
