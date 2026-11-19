@@ -8,8 +8,9 @@ vice-versa. The focus is on presentations, the aim is to simplify them.
 
 This package depends on `PermGroups`.
 
-The elements of finitely presented groups are [`AbsWord`](@ref) or abstract
-words, representing elements of a free group.
+The elements of `FpGroup`s (an abbreviation for "finitely presented groups"
+are  [`AbsWord`](@ref), an abbreviation  for "abstract words", representing
+elements of a free group.
 
 ```julia-repl
 julia> @AbsWord a,b,c,d,e,f # same as a=AbsWord(:a);b=AbsWord(:b)...
@@ -25,7 +26,6 @@ Presentation: 2 generators, 4 relators, total length 16
 Presentation: 2 generators, 3 relators, total length 10
 FreeGroup(a,c)/[a²,ac⁻¹ac⁻¹,c⁴]
 ```
-
 The simplification is done by the following process:
 
 ```julia-rep1
@@ -49,7 +49,7 @@ FreeGroup(a,b)
 julia> G=F/[a^2,b^7,comm(a,a^b),comm(a,a^(b^2))*inv(b^a)]
 FreeGroup(a,b)/[a²,b⁷,a⁻¹b⁻¹a⁻¹bab⁻¹ab,a⁻¹b⁻²a⁻¹b²ab⁻²ab²a⁻¹b⁻¹a]
 
-julia> P=Presentation(G) # by default give a summary
+julia> P=Presentation(G) # default printing gives a summary
 Presentation: 2 generators, 4 relators, total length 30
 
 julia> relators(P)
@@ -79,7 +79,7 @@ julia> display_balanced(P)
 3: aBab=BAbA
 4: BBabbaBBabbaB=1
 ```
-for  more  information  look  at
+for  more  information  look  at the docstrings of
 [`AbsWord`](@ref),
 [`FpGroup`](@ref),
 [`Presentation`](@ref),
@@ -158,7 +158,7 @@ module GroupPresentations
 #generators under the isomorphism which is defined by the sequence of Tietze
 #transformations which are applied to a presentation.
 #
-#The  functions, `show_pairs`, and `PrintOptions`,  can be useful. There are
+#The  functions, `showpairs`, and `PrintOptions`,  can be useful. There are
 #also  the  *Tietze  options*:  parameters  which  essentially influence the
 #performance  of the  functions mentioned  above; they  are not specified as
 #arguments of function calls. Instead, they are stored in the presentation.
@@ -192,7 +192,7 @@ using PermGroups
 using Combinat: tally
 export AbsWord, @AbsWord, Presentation, FpGroup, Go, GoGo, conjugate, 
        tryconjugate, simplify, relators, display_balanced, tracing, images,
-       showgens
+       showgens, showpairs
 
 plural(n,w)=string(n)*" "*w*(n==1 ? "" : "s")
 
@@ -204,6 +204,18 @@ representing `a³b⁻²a` is represented internally as
 `[:a => 3, :b => -2, :a => 1]`. The mulitiplcation follows the group rule:
 ```julia-repl
 julia> w=AbsWord([:a => 3, :b => -2, :a => 1])
+a³b⁻²a
+
+julia> w[4]
+:b => -1
+
+julia> w[3:4]
+ab⁻¹
+
+julia> length(w)
+6
+
+julia> w[begin:end]
 a³b⁻²a
 
 julia> w*AbsWord([:a=>-1,:b=>1])
@@ -239,7 +251,7 @@ end
 
 AbsWord(x::Symbol...)=isempty(x) ? AbsWord("") : AbsWord([s=>1 for s in x])
 
-"`@AbsWord x,y` is the same as `x=AbsWord(:x);y=AbsWord(y)`"
+"`@AbsWord x,y` define `AbsWord`s. The same as `x=AbsWord(:x);y=AbsWord(y)`"
 macro AbsWord(t) 
   if t isa Expr
     for v in t.args
@@ -250,7 +262,7 @@ macro AbsWord(t)
   end
 end
 
-"AbsWord(s::String) defines an `AbsWord` from a line of display_balanced"
+"AbsWord(s::String) computes `AbsWord` for a relator from a line of display_balanced"
 function AbsWord(s::AbstractString)
   ss=split(s,"=")
   if ss[end]=="1" pop!(ss) end
@@ -273,6 +285,7 @@ end
 
 """
 `AbsWord(word::Vector{Int}, gens::Vector{AbsWord})`
+
 `AbsWord(word::Vector{Int}, gens::Vector{Symbol})`
 
 Tranforms Tietze word `word` to an absword, using given generators `gens`.
@@ -322,6 +335,9 @@ function Base.getindex(w::AbsWord,i::Integer)
 end
 
 Base.getindex(w::AbsWord,i::AbstractVector{<:Integer})=AbsWord(getindex.(Ref(w),i))
+
+Base.firstindex(w::AbsWord)=1
+Base.lastindex(w::AbsWord)=length(w)
 #-------------------------- FpGroups -----------------------------
 @GapObj struct FpGroup <: Group{AbsWord}
   gens::Vector{AbsWord}
@@ -436,7 +452,7 @@ end
 # expandLimit, generatorsLimit, lengthLimit, loopLimit, debug,
 # saveLimit, searchSimultaneous, protected, status
 
-" `relators(P::Presentation)` relators of `P` as `AbsWord`s. "
+" `relators(P::Presentation)` return the relators of `P` as `AbsWord`s. "
 relators(P::Presentation)=AbsWord.(P.relators,Ref(P.generators))
 
 """
@@ -458,9 +474,19 @@ function FpGroup(P::Presentation)
   G
 end
 
-Presentation(s::Vector{Symbol},r,pl=1)=Presentation(AbsWord.(s),r,pl)
+Presentation(s::Vector{Symbol},r::Vector{AbsWord};debug=1)=
+  Presentation(AbsWord.(s),r;debug)
 
-function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord},debug::Int=1)
+"""
+`Presentation(gens::Vector{AbsWord},rels::Vector{AbsWord};debug::Int=1)`
+
+constructs  a `Presentation`  from a  list `gens`  of generators (which can
+also be given as a list of `Symbol`s) and a list `rels` of relators.
+
+`debug`   controls   the   amount   of   informative  printing  the  Tietze
+transformations will do when operating on the presentation.
+"""
+function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord};debug::Int=1)
   numgens=length(gens)
   rels=map(w->reduceword(TietzeWord(w,gens);cyclically=true),grels)
   P=Presentation(deepcopy(gens),numgens:-1:-numgens,rels,fill(1,length(rels)),
@@ -481,30 +507,29 @@ function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord},debug::Int=1)
   P
 end
 
-function Presentation(v::Vector{Vector{Int}})
+function Presentation(v::Vector{Vector{Int}};debug=1)
   gens=sort(unique(abs(x) for r in v for x in r))
-  if isempty(gens) return Presentation(AbsWord[],AbsWord[]) end
+  if isempty(gens) return Presentation(AbsWord[],AbsWord[];debug) end
   g=setdiff(1:maximum(gens),gens)
   if !isempty(g) error("generators $g missing") end
   vars=length(gens)<=26 ? Symbol.('a':'a'+length(gens)-1) :
       map(i->Symbol("x",stringind(rio(),i)),1:length(gens))
-  Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v))
+  Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v);debug)
 end
   
 """
-`Presentation( G::FpGroup[, debug=1])`
+`Presentation(G::FpGroup; debug=1)`
 
 returns  the  presentation  corresponding  to  the given finitely presented
 group `G`.
 
-The  optional `debug` parameter  can be used  to restrict or  to extend the
-amount  of output  provided by  Tietze transformation  functions when being
-applied  to the created  presentation. The default  value 1 is designed for
-interactive  use and implies  explicit messages to  be displayed by most of
-these functions. A `debug` value of 0 will suppress these messages, whereas
-a `debug` value of 2 will enforce some additional output.
+The  `debug` keyword controls the amount of informative printing
+done  by Tietze transformations when operating on the created presentation.
+The  default value  1 implies  messages to  be displayed  by most  of these
+functions.  A `debug`  value of  0 will  suppress these messages, whereas a
+`debug` value of 2 will cause some additional output.
 """
-Presentation(G::FpGroup,debug::Integer=1)=Presentation(G.gens,G.rels,debug)
+Presentation(G::FpGroup;debug::Integer=1)=Presentation(G.gens,G.rels;debug)
 
 # takes as input the output of display_balanced
 function Presentation(s::String;debug=1)
@@ -514,10 +539,10 @@ function Presentation(s::String;debug=1)
   l=filter(x->match(r"^ *$",x)===nothing,l)
   rels=AbsWord.(l)
   l=map(x->first.(x.d),rels)
-  if isempty(l) return Presentation(AbsWord[],AbsWord[],debug) end
+  if isempty(l) return Presentation(AbsWord[],AbsWord[];debug) end
   atoms=length(l)==1 ? unique(l[1]) : union(map(x->first.(x.d),rels)...)
   sort!(atoms)
-  Presentation(AbsWord.(atoms),rels,debug)
+  Presentation(AbsWord.(atoms),rels;debug)
 end
 
 Base.getindex(T::Presentation,i)=T.inverses[length(T.generators)+1-i]
@@ -598,7 +623,7 @@ function Base.show(io::IO, p::Presentation)
   print(io,"Presentation")
   if haskey(p,:name) print(io," ",p.name) end
   print(io,": ",plural(length(p.generators)-p.numredunds,"generator"),
-        ", ",plural(length(p.relators),"relator"),", total length ",
+        ", ",plural(length(p.relators),"relator")," of total length ",
         sum(length,p.relators;init=0))
 end
 
@@ -678,14 +703,14 @@ function showgens(T::Presentation,list=eachindex(T.generators))
 end
 
 """
-`show_pairs(P;n=10)`
+`showpairs(P;n=10)`
 
 shows  the  `n`  most  frequently  occurring squarefree relator subwords of
 length 2 with their number of occurrences.`n=0` is interpreted as infinity.
 
 This  is  useful  information  in  the context of the `Substitute` command.
 """
-function show_pairs(P::Presentation;n::Integer=10)
+function showpairs(P::Presentation;n::Integer=10)
   for (m,(num,i,j,k)) in enumerate(MostFrequentPairs(P,n))
     geni=P.generators[i];if k>1 geni=inv(geni) end
     genj=P.generators[j];if isodd(k) genj=inv(genj) end
@@ -1351,7 +1376,7 @@ julia> simplify(G)
 is an abbreviation of the call sequence
 
 ```julia-rep1
-julia> P=Presentation(G,0);simplify(P);FpGroup(P)
+julia> P=Presentation(G;debug=0);simplify(P);FpGroup(P)
 ```
 
 which applies  a rather simple-minded strategy of  Tietze transformations
@@ -1361,7 +1386,7 @@ then  you  should  try  a  more  sophisticated,  interactive  use of  the
 available Tietze transformation functions  (see "Tietze Transformations").
 """
 function simplify(G::FpGroup)
-  T=Presentation(G, 0)
+  T=Presentation(G;debug=0)
   GoGo(T)
   FpGroup(T)
 end
@@ -2585,7 +2610,7 @@ presentation.
 In order to decide which arguments might be appropriate for the next call
 of `Substitute`, often it  is helpful to print out a  list of the  most
 frequently occurring squarefree  relator subwords of  length 2.  You  may
-use the `show_pairs` command described below to do this.
+use the `showpairs` command described below to do this.
 
 As an example we handle a subgroup of index 266 in the Janko group `J₁`.
 
@@ -2693,7 +2718,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     &I  eliminating _x28 = _x6*_x23^-1
     gap> & GAP cannot substitute a new generator without extending the
     gap> & total length, so we have to explicitly ask for it
-    gap> show_pairs( P );
+    gap> showpairs( P );
     &I  1.  504  occurrences of  _x6 * _x23^-1
     &I  2.  504  occurrences of  _x6^-1 * _x23
     &I  3.  448  occurrences of  _x6 * _x23
@@ -2719,7 +2744,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     &I  there are 2 generators and 13 relators of total length 141
     &I  there are 2 generators and 12 relators of total length 121
     &I  there are 2 generators and 10 relators of total length 101
-    gap> show_pairs( P );
+    gap> showpairs( P );
     &I  1.  19  occurrences of  _x23 * _x30^-1
     &I  2.  19  occurrences of  _x23^-1 * _x30
     &I  3.  14  occurrences of  _x23 * _x30
