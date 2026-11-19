@@ -10,7 +10,7 @@ GroupPresentations
 AbsWord
 @AbsWord
 FpGroup
-Presentation(::FpGroup)
+Presentation
 relators
 showgens
 display_balanced

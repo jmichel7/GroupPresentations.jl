@@ -19,19 +19,23 @@ julia> F=FpGroup([a,b,c,d,e,f])
 FreeGroup(a,b,c,d,e,f)
 
 julia> G=F/[a^2,b^2,d*f^-1,e^2,f^2,a*b^-1*c,a*e*c^-1,b*d^-1*c,c*d*e^-1,a*f*c^-2,c^4]
-FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻¹,e²,f²,ab⁻¹c,aec⁻¹,bd⁻¹c,cde⁻¹,afc⁻²,c⁴]
-
-julia> simplify(F) # the main function of this package
-Presentation: 2 generators, 4 relators, total length 16
-Presentation: 2 generators, 3 relators, total length 10
-FreeGroup(a,c)/[a²,ac⁻¹ac⁻¹,c⁴]
+FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻,e²,f²,ab⁻c,aec⁻,bd⁻c,cde⁻,afc⁻²,c⁴]
 ```
+
+```julia-rep1
+julia> simplify(F) # the main function of this package
+Presentation: 2 generators, 4 relators of total length 16
+Presentation: 2 generators, 3 relators of total length 10
+FreeGroup(a,c)/[a²,ac⁻ac⁻,c⁴]
+```
+Note that when displaying an `AbsWord`, an exponent ⁻¹ is printed ⁻ to save
+space.
+
 The simplification is done by the following process:
 
 ```julia-rep1
 julia> P=Presentation(G);simplify(P);G=FpGroup(P)
 ```
-
 The   functions  [`Presentation`](@ref)  and   [`FpGroup`](@ref)  create  a
 presentation from a finitely presented group and vice versa.
 
@@ -47,17 +51,17 @@ julia> F=FpGroup([a,b])
 FreeGroup(a,b)
 
 julia> G=F/[a^2,b^7,comm(a,a^b),comm(a,a^(b^2))*inv(b^a)]
-FreeGroup(a,b)/[a²,b⁷,a⁻¹b⁻¹a⁻¹bab⁻¹ab,a⁻¹b⁻²a⁻¹b²ab⁻²ab²a⁻¹b⁻¹a]
+FreeGroup(a,b)/[a²,b⁷,a⁻b⁻a⁻bab⁻ab,a⁻b⁻²a⁻b²ab⁻²ab²a⁻b⁻a]
 
 julia> P=Presentation(G) # default printing gives a summary
-Presentation: 2 generators, 4 relators, total length 30
+Presentation: 2 generators, 4 relators of total length 30
 
 julia> relators(P)
 4-element Vector{AbsWord}:
  a²
  b⁷
- ab⁻¹abab⁻¹ab
- b⁻²ab²ab⁻²ab²ab⁻¹
+ ab⁻abab⁻ab
+ b⁻²ab²ab⁻²ab²ab⁻
 ```
 
 ```julia-rep1
@@ -65,19 +69,19 @@ julia> showgens(P)
 1. a 10 occurrences involution
 2. b 20 occurrences
 
-julia> dump(P) # here in relators inverses are represented by capitalizing
-# F relator
-1:3 aa
-2:0 bbbbbbb
-3:0 aBabaBab
-4:0 abbaBBabbaBBB
-gens=AbsWord[a, b] involutions:AbsWord[a] modified=false numredunds=0
-
 julia> display_balanced(P)
-1: a=A
-2: bbbbbbb=1
-3: aBab=BAbA
-4: BBabbaBBabbaB=1
+1: a=a⁻
+2: b⁷=1
+3: ab⁻ab=b⁻a⁻ba⁻
+4: b⁻²ab²ab⁻²ab²ab⁻=1
+
+julia> dump(P)
+# F relator
+1:3 a²
+2:1 b⁷
+3:1 ab⁻abab⁻ab
+4:1 b⁻²ab²ab⁻²ab²ab⁻
+gens=a,b involutions:a modified=false numredunds=0
 ```
 for  more  information  look  at the docstrings of
 [`AbsWord`](@ref),
@@ -174,13 +178,14 @@ function stringind(io::IO,n::Integer)
   end
 end
 
-const supvec=collect("⁰¹²³⁴⁵⁶⁷⁸⁹")
+const supvec=collect("⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
 
 function stringexp(io::IO,n::Integer)
   if isone(n) ""
   elseif get(io,:TeX,false) 
     n in 0:9 ? "^"*string(n) : "^{"*string(n)*"}"
   elseif get(io,:limit,false)
+    if n==-1 return "⁻" end
     if n<0 res=['⁻']; n=-n else res=Char[] end
     for i in reverse(digits(n)) push!(res,supvec[i+1]) end
     String(res)
@@ -210,7 +215,7 @@ julia> w[4]
 :b => -1
 
 julia> w[3:4]
-ab⁻¹
+ab⁻
 
 julia> length(w)
 6
@@ -219,7 +224,7 @@ julia> w[begin:end]
 a³b⁻²a
 
 julia> w*AbsWord([:a=>-1,:b=>1])
-a³b⁻¹
+a³b⁻
 
 ```
 A positive `AbsWord` may be obtained by giving `Symbols` as arguments
@@ -262,18 +267,45 @@ macro AbsWord(t)
   end
 end
 
-"AbsWord(s::String) computes `AbsWord` for a relator from a line of display_balanced"
+"""
+`AbsWord(s::String)` computes an `AbsWord` from a line of
+`display_balanced`  or from the display of an `AbsWord`. It is assumed that
+all the symbols in the `AbsWord` print as one (non-superscript) character.
+```julia-repl
+julia> AbsWord("aec⁻")
+aec⁻
+
+julia> AbsWord("c²=c⁻²")
+c⁴
+```
+"""
 function AbsWord(s::AbstractString)
   ss=split(s,"=")
   if ss[end]=="1" pop!(ss) end
   if length(ss)==2 return AbsWord(ss[1])*inv(AbsWord(ss[2])) end
   s=ss[1]
   res=Pair{Symbol,Int}[]
-  for c in collect(s)
-    if islowercase(c) push!(res,Symbol(c)=>1)
-    else push!(res,Symbol(lowercase(c))=>-1)
+  prevl=nothing
+  exp=Int[]
+  function num(exp::Vector{Int})
+    sgn=1;n=0
+    for i in exp
+      if i==-1 sgn=i
+      else n=10*n+i
+      end
+    end
+    sgn*(n==0 ? 1 : n)
+  end
+  for c in s
+    i=findfirst(==(c),supvec)
+    if isnothing(i)
+      if !isnothing(prevl) push!(res,Symbol(prevl)=>num(exp)) end
+      prevl=c
+      exp=Int[]
+    else push!(exp,i==11 ? -1 : i-1)
     end
   end
+  if !isnothing(prevl) push!(res,Symbol(prevl)=>num(exp)) end
   AbsWord(res)
 end
 
@@ -288,18 +320,25 @@ end
 
 `AbsWord(word::Vector{Int}, gens::Vector{Symbol})`
 
+`AbsWord(word::Vector{Int})`
+
 Tranforms Tietze word `word` to an absword, using given generators `gens`.
+If no list of generators is given, the list `Symbol.('a':'z')` is used.
 
 ```julia-repl
 julia> AbsWord([-1,-2,1,-3,-3],AbsWord.([:a,:b,:c]))
-a⁻¹b⁻¹ac⁻²
+a⁻b⁻ac⁻²
 
 julia> AbsWord([-1,-2,1,-3,-3],[:a,:b,:c])
-a⁻¹b⁻¹ac⁻²
+a⁻b⁻ac⁻²
+
+julia> AbsWord([-1,-2,1,-3,-3])
+a⁻b⁻ac⁻²
 ```
 """
 AbsWord(tz::Vector{Int},gens::Vector{AbsWord})=AbsWord(tz,mon.(gens))
 AbsWord(tz::Vector{Int},ss::Vector{Symbol})=AbsWord(map(i->ss[abs(i)]=>sign(i),tz))
+AbsWord(tz::Vector{Int})=AbsWord(tz,Symbol.('a':'z'))
 
 function Base.show(io::IO,a::AbsWord)
   if isone(a) print(io,".") end
@@ -477,36 +516,6 @@ end
 Presentation(s::Vector{Symbol},r::Vector{AbsWord};debug=1)=
   Presentation(AbsWord.(s),r;debug)
 
-"""
-`Presentation(gens::Vector{AbsWord},rels::Vector{AbsWord};debug::Int=1)`
-
-constructs  a `Presentation`  from a  list `gens`  of generators (which can
-also be given as a list of `Symbol`s) and a list `rels` of relators.
-
-`debug`   controls   the   amount   of   informative  printing  the  Tietze
-transformations will do when operating on the presentation.
-"""
-function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord};debug::Int=1)
-  numgens=length(gens)
-  rels=map(w->reduceword(TietzeWord(w,gens);cyclically=true),grels)
-  P=Presentation(deepcopy(gens),numgens:-1:-numgens,rels,fill(1,length(rels)),
-                 false, 0, Dict{Symbol,Any}())
-  P.nextFree=numgens+1
-  P.eliminationsLimit=100
-  P.expandLimit=150
-  P.generatorsLimit=0
-  P.lengthLimit=0 # infinity
-  P.loopLimit=0 # infinity
-  P.debug=debug
-  P.saveLimit=10
-  P.searchSimultaneous=20
-  PrintStatus(P,2)
-  P.protected=length(P.generators);HandleLength1Or2Relators(P);P.protected=0
-  sort!(P)
-  PrintStatus(P,2)
-  P
-end
-
 function Presentation(v::Vector{Vector{Int}};debug=1)
   gens=sort(unique(abs(x) for r in v for x in r))
   if isempty(gens) return Presentation(AbsWord[],AbsWord[];debug) end
@@ -531,12 +540,46 @@ functions.  A `debug`  value of  0 will  suppress these messages, whereas a
 """
 Presentation(G::FpGroup;debug::Integer=1)=Presentation(G.gens,G.rels;debug)
 
-# takes as input the output of display_balanced
+"""
+`Presentation(gens::Vector{AbsWord},rels::Vector{AbsWord};debug::Int=1)`
+
+constructs  a `Presentation`  from a  list `gens`  of generators (which can
+also be given as a list of `Symbol`s) and a list `rels` of relators.
+"""
+function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord};debug::Int=1)
+  numgens=length(gens)
+  rels=map(w->reduceword(TietzeWord(w,gens);cyclically=true),grels)
+  P=Presentation(deepcopy(gens),numgens:-1:-numgens,rels,fill(1,length(rels)),
+                 false, 0, Dict{Symbol,Any}())
+  P.nextFree=numgens+1
+  P.eliminationsLimit=100
+  P.expandLimit=150
+  P.generatorsLimit=0
+  P.lengthLimit=0 # infinity
+  P.loopLimit=0 # infinity
+  P.debug=debug
+  P.saveLimit=10
+  P.searchSimultaneous=20
+  PrintStatus(P,2)
+  P.protected=length(P.generators);HandleLength1Or2Relators(P);P.protected=0
+  sort!(P)
+  PrintStatus(P,2)
+  P
+end
+
+"""
+`Presentation(s::String; debug=1)`
+
+computes  a  presentation  from  the  output  of  `display_balanced`  or of
+`relators`.  It is assumed  that writing any  generator of the presentation
+takes one (non-superscript) character.
+"""
 function Presentation(s::String;debug=1)
   s=replace(s,r"\n\s*="=>"=")
   l=split(s,"\n")
   l=map(s->replace(s,r"^ *[0-9]*: *"=>""),l)
   l=filter(x->match(r"^ *$",x)===nothing,l)
+  l=map(x->replace(x,r"\s*$"=>""),l)
   rels=AbsWord.(l)
   l=map(x->first.(x.d),rels)
   if isempty(l) return Presentation(AbsWord[],AbsWord[];debug) end
@@ -632,10 +675,10 @@ function Base.dump(T::Presentation)
   l1=filter(i->T[-i]==T[i],l)
   println("# F relator")
   for i in eachindex(T.relators)
-    println("$i:",T.flags[i]," ",alphab(T.relators[i],T.generators))
+    println(rio(),"$i:",T.flags[i]," ",AbsWord(T.relators[i],T.generators))
   end
-  print("gens=",T.generators)
-  if length(l1)>0 print(" involutions:",T.generators[l1])end
+  print("gens=");join(rio(),T.generators,",")
+  if length(l1)>0 print(" involutions:");join(rio(),T.generators[l1],",") end
   println(" modified=",T.modified," numredunds=",T.numredunds)
   if l1!=l display(stack(map(i->[T.generators[i],T[i],T[-i]],l))) end
 end
@@ -649,13 +692,13 @@ same length.
 ```julia-rep1
 julia> relators(p)
 7-element Vector{AbsWord}:
- dbd⁻¹b⁻¹
- bab⁻¹a⁻¹
- caca⁻¹c⁻¹a⁻¹
- adad⁻¹a⁻¹d⁻¹
- bcbc⁻¹b⁻¹c⁻¹
- cdcdc⁻¹d⁻¹c⁻¹d⁻¹
- a⁻¹dc⁻¹acdc⁻¹a⁻¹cd⁻¹ac⁻¹
+ dbd⁻b⁻
+ bab⁻a⁻
+ caca⁻c⁻a⁻
+ adad⁻a⁻d⁻
+ bcbc⁻b⁻c⁻
+ cdcdc⁻d⁻c⁻d⁻
+ a⁻dc⁻acdc⁻a⁻cd⁻ac⁻
 
 julia> display_balanced(p)
 1: db=bd
@@ -664,21 +707,22 @@ julia> display_balanced(p)
 4: ada=dad
 5: bcb=cbc
 6: cdcd=dcdc
-7: AdCacd=cAdCac
+7: a⁻dc⁻acd=ca⁻dc⁻ac
 ```
 """
-function display_balanced(T,dumb=false)
+function display_balanced(T;dumb=false)
   f(i,w)=vcat(w,w)[i:i+div(length(w),2)-1]
   used=Set{Int}();for x in T.relators, y in x push!(used,abs(y)) end
   if length(T.generators)>length(used)
-   print("There are ",length(T.generators)-length(used)," free generators\n")
+    println(plural(length(T.generators)-length(used)," free generator"))
   end
   for (i,w) in enumerate(T.relators)
     lw=length(w)
-    if isodd(lw) || dumb println(i, ": ", alphab(w,T.generators), "=1")
+    if isodd(lw) || dumb println(rio(),i, ": ", AbsWord(w,T.generators), "=1")
     elseif lw>0
       m=argmax(map(i->count(>(0), f(i,w)), 1:lw))
-      println("$i: ",alphab(f(m,w),T.generators),"=",alphab(-reverse(f(m+div(lw,2),w)),T.generators))
+      println(rio(),"$i: ",AbsWord(f(m,w),T.generators),"=",
+                     AbsWord(-reverse(f(m+div(lw,2),w)),T.generators))
     end
   end
 end
@@ -696,7 +740,8 @@ function showgens(T::Presentation,list=eachindex(T.generators))
   occur=Occurrences(T)
   if list isa Integer list=[list] end
   for i in list
-    print(i, ". ", gens[i], " ",plural(occur[1][i],"occurrence"))
+    print(i, ". ", gens[i]," ",plural(occur[1][i],"occurrence"))
+    print(" (",plural(occur[3][i],"time")," in relator ",occur[2][i],")")
     if T[-i]>0 print(" involution") end
     println()
   end
@@ -1156,12 +1201,11 @@ uses coset enumeration methods to find a defining set of relators for `G`.
     &I  4. f.1*f.2*f.1^-1*f.2*f.1*f.2^-1*f.1^-1*f.2*f.1*f.2*f.1^-1*f.2^-1
     &I  5. f.1^2*f.2*f.1*f.2*f.1*f.2^-1*f.1^-1*f.2^-1*f.1^3*f.2^-1 |
     gap> DisplayPresentation(P);
-    1: bbb=1
-    2: aaa=AAA
-    3: bababa=ABABAB
-    4: baBAba=aBAbaB
-    5: aababaBABaaaB=1
-
+    1: b³=1
+    2: a³=a⁻³
+    3: bababa=a⁻¹b⁻¹a⁻¹b⁻¹a⁻¹b⁻¹
+    4: bab⁻¹a⁻¹ba=ab⁻¹a⁻¹bab⁻¹
+    5: a²babab⁻¹a⁻¹b⁻¹a³b⁻¹=1 |
 The  second form  allows to  call Cannon's  two stage algorithm which first
 applies  the single stage  algorithm to an  appropriate subgroup `H` of `G`
 and  then uses the resulting relators of `H`  and a coset table of `G` with
@@ -1182,16 +1226,16 @@ subgroup generators for `H`.
     gap> P := PresentationViaCosetTable( M12, F, words );
     << presentation with 3 gens and 10 rels of total length 97 >>
     gap> DisplayPresentation(P);
-    1: c=C
-    2: bb=BB
-    3: cac=ACA
-    4: aBBaBBaBB=1
-    5: aaaaaaaaaaa=1
-    6: aaBaab=bAbbaa
-    7: bAbABa=AbaBaB
-    8: aabaaBBAbABAB=1
-    9: aaBABacbcabab=1
-    10: aaabaabAAcabAca=1
+    1: c=c⁻¹
+    2: b²=b⁻²
+    3: cac=a⁻¹c⁻¹a⁻¹
+    4: ab⁻²ab⁻²ab⁻²=1
+    5: a¹¹=1
+    6: a²b⁻¹a²b=ba⁻¹b²a²
+    7: ba⁻¹ba⁻¹b⁻¹a=a⁻¹bab⁻¹ab⁻¹
+    8: a²ba²b⁻²a⁻¹ba⁻¹b⁻¹a⁻¹b⁻¹=1
+    9: a²b⁻¹a⁻¹b⁻¹acbcabab=1
+    10: a³ba²ba⁻²caba⁻¹ca=1
     gap> G := FpGroup(P);
     Group( a, b, c )
     gap> G.relators;
@@ -1212,20 +1256,20 @@ bijection, it may be convenient to apply the function
 `simplify` again.
 
 julia> P=Presentation("
-1: aaa=1
-2: AFB=1
-3: bbb=1
-4: ccc=1
-5: CEd=1
-6: ddd=1
+1: a³=1
+2: a⁻¹f⁻¹b⁻¹=1
+3: b³=1
+4: c³=1
+5: c⁻¹e⁻¹d=1
+6: d³=1
 7: af=ba
 8: ac=ca
 9: bc=cb
 10: ad=da
 11: bd=db
-12: dc=cE
+12: dc=ce⁻¹
 ")
-Presentation: 6 generators, 12 relators, total length 42
+Presentation: 6 generators, 12 relators of total length 42
     gap> simplify( P );
     &I  there are 4 generators and 10 relators of total length 36 |
 
@@ -1236,7 +1280,7 @@ construct a presentation for the given group
 concrete  group.  It applies  John  Cannon's  relations finding algorithm
 which has been described in
 
-  John J. Cannon:  Construction of  defining relators  for  finte groups.
+  John J. Cannon:  Construction of  defining relators  for finite groups.
   Discrete Math. 5 (1973), 105-129, and in
 
   Joachim Neubueser: An elementary introduction to coset table methods in
@@ -1361,10 +1405,10 @@ julia> F=FpGroup([a,b,c,d,e,f])
 FreeGroup(a,b,c,d,e,f)
 
 julia> G=F/[a^2,b^2,d*f^-1,e^2,f^2,a*b^-1*c,a*e*c^-1,b*d^-1*c,c*d*e^-1,a*f*c^-2,c^4]
-FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻¹,e²,f²,ab⁻¹c,aec⁻¹,bd⁻¹c,cde⁻¹,afc⁻²,c⁴]
+FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻,e²,f²,ab⁻c,aec⁻,bd⁻c,cde⁻,afc⁻²,c⁴]
 
 julia> simplify(G)
-FreeGroup(a,c)/[a²,ac⁻¹ac⁻¹,c⁴]
+FreeGroup(a,c)/[a²,ac⁻ac⁻,c⁴]
 ```
 
 In fact, the call
@@ -1378,7 +1422,6 @@ is an abbreviation of the call sequence
 ```julia-rep1
 julia> P=Presentation(G;debug=0);simplify(P);FpGroup(P)
 ```
-
 which applies  a rather simple-minded strategy of  Tietze transformations
 to the intermediate presentation `P`.
 If for  some  concrete group the resulting presentation  is unsatisfying,
@@ -1528,7 +1571,7 @@ end
 
 # returns 3 vectors:
 # 1: nb. occurences of each generator
-# 2: n0 of a relator of minimal length where occurs with minimal>0 multiplicity
+# 2: n0 of a relator of minimal length among those where occurs with minimal>0 multiplicity
 # 3: the corresponding multiplicity
 function Occurrences(T::Presentation)
   occ=fill(0,length(T.generators))
@@ -1539,12 +1582,11 @@ function Occurrences(T::Presentation)
     for i in T.relators[j] lococc[abs(i)]+=1 end
     occ+=lococc
     for i in eachindex(T.generators)
-      if lococc[i]>0
+      if lococc[i]==0 continue end
       if mult[i]==0 || lococc[i]<mult[i] || 
         (lococc[i]==mult[i] && length(T.relators[j])<length(T.relators[min[i]]))
           min[i]=j
           mult[i]=lococc[i]
-        end
       end
     end
   end
@@ -1800,42 +1842,38 @@ As an example  we  compute  a presentation of a  subgroup of index 408 in
     gap> P := PresentationSubgroup( G, H );
     << presentation with 8 gens and 36 rels of total length 111 >>
     gap> DisplayPresentation(P);
-    1: a=A
-    2: g=G
-    3: c=C
-    4: f=F
-    5: h=H
-    6: d=D
+    1: a=a⁻
+    2: g=g⁻
+    3: c=c⁻
+    4: f=f⁻
+    5: h=h⁻
+    6: d=d⁻
     7: fbc=1
-    8: dBa=1
+    8: db⁻a=1
     9: gdb=1
     10: ceb=1
     11: eab=1
-    12: caB=1
-    13: BBB=1
-    14: cBd=1
+    12: cab⁻=1
+    13: b⁻³=1
+    14: cb⁻d=1
     15: acb=1
-    16: afB=1
-    17: bbb=1
+    16: afb⁻=1
+    17: b³=1
     18: bac=1
     19: cba=1
-    20: aBc=1
-    21: haB=1
+    20: ab⁻c=1
+    21: hab⁻=1
     22: dab=1
-    23: Bec=1
-    24: Bad=1
-    25: Bca=1
-    26: bbb=1
-    27: afB=1
-    28: agb=1
-    29: agb=1
-    30: ab=BA
-    31: ab=bC
-    32: ab=BA
-    33: ac=Ce
-    34: ac=bb
-    35: cB=bC
-    36: aca=CAC
+    23: b⁻ec=1
+    24: b⁻ad=1
+    25: b⁻ca=1
+    26: agb=1
+    27: ab=b⁻a⁻
+    28: ab=bc⁻
+    29: ac=c⁻e
+    30: ac=b²
+    31: cb⁻=bc⁻
+    32: aca=c⁻a⁻c⁻
     gap> P.protected := 2;;
     gap> P.debug := 2;;
     gap> simplify( P );
@@ -1908,7 +1946,7 @@ five consecutive calls of `Go`.
 function GoGo(T::Presentation)
   numgens=length(T.generators)
   numrels=length(T.relators)
-  total=sum(length,T.relators)
+  total=sum(length,T.relators;init=0)
   silentGo=T.debug==1
   count=0
   while count<5
@@ -2472,13 +2510,13 @@ function Search(P::Presentation)
       end
       if k>length(T.relators) j=lastj end
       if i<=j
-#       @show T.flags
+ #      @show T.flags
         altered=SearchC(T,i,j)
         if !isempty(altered)
           debug(P,3,"SearchC($i,$j): ",length(altered)," altered")
           modified=true
           T.flags[altered].=2
-#         @show T.flags,altered
+ #        @show T.flags,altered
         end
         i=j
       end
@@ -2622,88 +2660,80 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     gap> P := PresentationSubgroup( J1, H );
     << presentation with 23 gens and 82 rels of total length 530 >>|
     P=Presentation("
-1: a=A
-2: r=R
-3: b=B
-4: g=G
-5: p=P
-6: q=Q
-7: l=L
-8: j=J
+1: a=a⁻
+2: r=r⁻
+3: b=b⁻
+4: g=g⁻
+5: p=p⁻
+6: q=q⁻
+7: l=l⁻
+8: j=j⁻
 9: ied=1
-10: ccc=1
+10: c³=1
 11: dca=1
-12: iii=1
-13: eee=1
+12: i³=1
+13: e³=1
 14: tao=1
 15: fac=1
-16: www=1
+16: w³=1
 17: vnl=1
-18: mHj=1
+18: mh⁻j=1
 19: utf=1
 20: wup=1
-21: Mkg=1
+21: m⁻kg=1
 22: snq=1
-23: tSf=1
-24: vvv=1
-25: gc=mN
-26: rg=kS
-27: lo=oP
-28: gb=QG
-29: Hf=fi
-30: bh=dO
-31: gj=LG
-32: lb=Vf
-33: gr=RG
-34: gCbeb=1
-35: weedU=1
-36: rhnng=1
-37: uuuuu=1
-38: kop=hAB
-39: gal=feB
-40: gsf=sfB
-41: agf=LBE
-42: ahn=iBG
-43: hab=koP
-44: wUDbgbf=1
-45: wUDbgbf=1
-46: jCabeDb=1
-47: wuOnfDU=1
-48: kHbdiib=1
-49: jbdEbac=1
-50: gbca=HBAc
-51: qlaf=fIUP
-52: babc=EcBA
-53: gbca=HBAc
-54: abac=cBAB
-55: KgHm=MhGk
-56: rbed=fdFT
-57: kMha=RBdF
-58: babc=EcBA
-59: Fafp=PFAf
-60: qlaf=fIUP
-61: rlns=hKRh
-62: grgs=sLQL
-63: rlns=hKRh
-64: rbed=fdFT
-65: FHbEdFacb=1
-66: sfOfIFaHg=1
-67: vlgbaccsl=1
-68: vbIeebrgs=1
-69: bdIFa=kfWuF
-70: bdIFa=kfWuF
-71: bgbdi=diiAI
-72: pUtHm=UtHmG
-73: ababab=BABABA
-74: lgrkgl=VGRGsn
-75: aTFaft=TFAftA
-76: lnqNln=nQNLnQ
-77: gqgbdp=RGQGBd
-78: lgrkgl=VGRGsn
-79: jrglql=mGMJRG
-80: bhgMjmg=dFLfDBh
-81: kMjmKrkMj=RkMJmKRkM
-82: jmgMjmgMjm=mGMJmGMJmG")
+23: ts⁻f=1
+24: v³=1
+25: gc=mn⁻
+26: rg=ks⁻
+27: lo=op⁻
+28: gb=q⁻g⁻
+29: h⁻f=fi
+30: bh=do⁻
+31: gj=l⁻g⁻
+32: lb=v⁻f
+33: gr=r⁻g⁻
+34: gc⁻beb=1
+35: we²du⁻=1
+36: rhn²g=1
+37: u⁵=1
+38: kop=ha⁻b⁻
+39: gal=feb⁻
+40: gsf=sfb⁻
+41: agf=l⁻b⁻e⁻
+42: ahn=ib⁻g⁻
+43: hab=kop⁻
+44: wu⁻d⁻bgbf=1
+45: jc⁻abed⁻b=1
+46: wuo⁻nfd⁻u⁻=1
+47: kh⁻bdi²b=1
+48: jbde⁻bac=1
+49: gbca=h⁻b⁻a⁻c
+50: qlaf=fi⁻u⁻p⁻
+51: babc=e⁻cb⁻a⁻
+52: abac=cb⁻a⁻b⁻
+53: k⁻gh⁻m=m⁻hg⁻k
+54: rbed=fdf⁻t⁻
+55: km⁻ha=r⁻b⁻df⁻
+56: f⁻afp=p⁻f⁻a⁻f
+57: rlns=hk⁻r⁻h
+58: grgs=sl⁻q⁻l⁻
+59: f⁻h⁻be⁻df⁻acb=1
+60: sfo⁻fi⁻f⁻ah⁻g=1
+61: vlgbac²sl=1
+62: vbi⁻e²brgs=1
+63: bdi⁻f⁻a=kfw⁻uf⁻
+64: bgbdi=di²a⁻i⁻
+65: pu⁻th⁻m=u⁻th⁻mg⁻
+66: ababab=b⁻a⁻b⁻a⁻b⁻a⁻
+67: lgrkgl=v⁻g⁻r⁻g⁻sn
+68: at⁻f⁻aft=t⁻f⁻a⁻fta⁻
+69: lnqn⁻ln=nq⁻n⁻l⁻nq⁻
+70: gqgbdp=r⁻g⁻q⁻g⁻b⁻d
+71: jrglql=mg⁻m⁻j⁻r⁻g⁻
+72: bhgm⁻jmg=df⁻l⁻fd⁻b⁻h
+73: km⁻jmk⁻rkm⁻j=r⁻km⁻j⁻mk⁻r⁻km⁻
+74: jmgm⁻jmgm⁻jm=mg⁻m⁻j⁻mg⁻m⁻j⁻mg⁻
 |    gap> GoGo( P );
     &I  there are 3 generators and 47 relators of total length 1368
     &I  there are 2 generators and 46 relators of total length 3773
@@ -2937,27 +2967,27 @@ Example.
     << presentation with 6 gens and 21 rels of total length 84 >>
 ```julia-rep1
 P=Presentation("
-1: a=A
-2: e=E
-3: f=F
-4: c=C
-5: d=D
-6: bbb=1
-7: fc=CF
-8: dc=CD
-9: fe=EF
-10: ec=CE
-11: da=AF
-12: ed=DE
-13: fd=DF
-14: ca=AE
-15: ea=AC
-16: fa=AD
-17: fb=bE
-18: Bcbfd=1
-19: Bebfe=1
-20: Bdbfedc=1
-21: babab=ABABA
+1: a=a⁻
+2: e=e⁻
+3: f=f⁻
+4: c=c⁻
+5: d=d⁻
+6: b³=1
+7: fc=c⁻f⁻
+8: dc=c⁻d⁻
+9: fe=e⁻f⁻
+10: ec=c⁻e⁻
+11: da=a⁻f⁻
+12: ed=d⁻e⁻
+13: fd=d⁻f⁻
+14: ca=a⁻e⁻
+15: ea=a⁻c⁻
+16: fa=a⁻d⁻
+17: fb=be⁻
+18: b⁻cbfd=1
+19: b⁻ebfe=1
+20: b⁻dbfedc=1
+21: babab=a⁻b⁻a⁻b⁻a⁻
 ")
 julia> P.generators
 6-element Vector{AbsWord}:
@@ -2968,9 +2998,9 @@ julia> P.generators
  e
  f
 julia> GroupPresentations.GoGo(P)
-Presentation: 3 generators, 10 relators, total length 81
-Presentation: 3 generators, 10 relators, total length 80
-Presentation: 3 generators, 10 relators, total length 80
+Presentation: 3 generators, 10 relators of total length 81
+Presentation: 3 generators, 10 relators of total length 80
+Presentation: 3 generators, 10 relators of total length 80
 
 julia> showgens(P)
 1. a 31 occurrences involution
@@ -2986,11 +3016,11 @@ julia> GroupPresentations.Substitute( P, a*b, :ab )
 #started tracing generator images
 #Substitute new generator ab defined by ab
 #started tracing generator images
-Presentation: 4 generators, 11 relators, total length 83
+Presentation: 4 generators, 11 relators of total length 83
 
 julia> GroupPresentations.Go(P)
-#Presentation: 3 generators, 10 relators, total length 74
-#Presentation: 3 generators, 10 relators, total length 74
+#Presentation: 3 generators, 10 relators of total length 74
+#Presentation: 3 generators, 10 relators of total length 74
 
 julia> showgens(P)
 1. a 25 occurrences involution
@@ -3144,32 +3174,32 @@ the images of the old generators as words in the current generators.
 
 ```julia-repl
 julia> P=Presentation("
-1: a=A
-2: e=E
-3: f=F
-4: c=C
-5: d=D
-6: bbb=1
-7: fc=CF
-8: dc=CD
-9: fe=EF
-10: ec=CE
-11: da=AF
-12: ed=DE
-13: fd=DF
-14: ca=AE
-15: ea=AC
-16: fa=AD
-17: fb=bE
-18: Bcbfd=1
-19: Bebfe=1
-20: Bdbfedc=1
-21: babab=ABABA
-") 
-Presentation: 6 generators, 21 relators, total length 84
+1: a=a⁻
+2: e=e⁻
+3: f=f⁻
+4: c=c⁻
+5: d=d⁻
+6: b³=1
+7: fc=c⁻f⁻
+8: dc=c⁻d⁻
+9: fe=e⁻f⁻
+10: ec=c⁻e⁻
+11: da=a⁻f⁻
+12: ed=d⁻e⁻
+13: fd=d⁻f⁻
+14: ca=a⁻e⁻
+15: ea=a⁻c⁻
+16: fa=a⁻d⁻
+17: fb=be⁻
+18: b⁻cbfd=1
+19: b⁻ebfe=1
+20: b⁻dbfedc=1
+21: babab=a⁻b⁻a⁻b⁻a⁻
+")
+Presentation: 6 generators, 21 relators of total length 84
 julia> tracing(P)
 julia> GroupPresentations.Go(P)
-Presentation: 3 generators, 10 relators, total length 81
+Presentation: 3 generators, 10 relators of total length 81
 
 julia> P.imagesOldGens
 6-element Vector{Vector{Int64}}:
@@ -3282,31 +3312,30 @@ julia> display_balanced(p)
 5: adca=cadc
 6: dcdc=cdcd
 7: adad=dada
-8: Dbdcbd=cDbdcb
-9: adcDad=dcDadc
+8: d⁻bdcbd=cd⁻bdcb
+9: adcd⁻ad=dcd⁻adc
 10: dcdadc=adcdad
 11: dcabdcbda=adbcbadcb
-12: caCbdcbad=bdcbadBcb
-13: cbDadcbad=bDadcbadc
-14: cdAbCadBc=bdcAbCdBa
-15: cdCbdcabdc=bdcbadcdaD
-16: DDBcccbdcAb=cAbCdcBCddc
-17: CdaBdbAdcbCad=abdcAbDadBCbb
-18: bdbcabdcAADAdBDa=cbadcbDadcBDABDb
-19: CbdbadcDbbdCbDDadcBCDAdBCDbdaDCDbdcbadcBCDAdBCDBBdacDbdccb=abdbcabdcAdcbCDDBCDABDABDbbdcbDadcbCDAdBCabDACbdBadcaDbAdd
-
+12: cac⁻bdcbad=bdcbadb⁻cb
+13: cbd⁻adcbad=bd⁻adcbadc
+14: cda⁻bc⁻adb⁻c=bdca⁻bc⁻db⁻a
+15: cdc⁻bdcabdc=bdcbadcdad⁻
+16: d⁻²b⁻c³bdca⁻b=ca⁻bc⁻dcb⁻c⁻d²c
+17: c⁻dab⁻dba⁻dcbc⁻ad=abdca⁻bd⁻adb⁻c⁻b²
+18: bdbcabdca⁻²d⁻a⁻db⁻d⁻a=cbadcbd⁻adcb⁻d⁻a⁻b⁻d⁻b
+19: c⁻bdbadcd⁻b²dc⁻bd⁻²adcb⁻c⁻d⁻a⁻db⁻c⁻d⁻bdad⁻c⁻d⁻bdcbadcb⁻c⁻d⁻a⁻db⁻c⁻d⁻b⁻²dacd⁻bdc²b=abdbcabdca⁻dcbc⁻d⁻²b⁻c⁻d⁻a⁻b⁻d⁻a⁻b⁻d⁻b²dcbd⁻adcbc⁻d⁻a⁻db⁻c⁻abd⁻a⁻c⁻bdb⁻adcad⁻ba⁻d²
 julia> simplify(p)
-Presentation: 4 generators, 18 relators, total length 304
-Presentation: 4 generators, 18 relators, total length 284
-Presentation: 4 generators, 17 relators, total length 264
-Presentation: 4 generators, 16 relators, total length 256
-Presentation: 4 generators, 15 relators, total length 244
-Presentation: 4 generators, 15 relators, total length 240
-Presentation: 4 generators, 15 relators, total length 226
-Presentation: 4 generators, 15 relators, total length 196
-Presentation: 4 generators, 15 relators, total length 178
-Presentation: 4 generators, 15 relators, total length 172
-Presentation: 4 generators, 14 relators, total length 158
+Presentation: 4 generators, 18 relators of total length 304
+Presentation: 4 generators, 18 relators of total length 284
+Presentation: 4 generators, 17 relators of total length 264
+Presentation: 4 generators, 16 relators of total length 256
+Presentation: 4 generators, 15 relators of total length 244
+Presentation: 4 generators, 15 relators of total length 240
+Presentation: 4 generators, 15 relators of total length 226
+Presentation: 4 generators, 15 relators of total length 196
+Presentation: 4 generators, 15 relators of total length 178
+Presentation: 4 generators, 15 relators of total length 172
+Presentation: 4 generators, 14 relators of total length 158
 
 julia> display_balanced(p)
 1: ab=ba
@@ -3323,6 +3352,7 @@ julia> display_balanced(p)
 12: dcbadcbda=adcbcadcb
 13: cbCDadcab=DadcbadcD
 14: caDCbdBcADbda=bDBaDbADcbadc
+[[1, 2, -1, -2], [4, 2, 4, -2, -4, -2], [2, 3, 2, -3, -2, -3], [3, 1, 3, -1, -3, -1], [1, 4, -1, 3, 1, -4, -1, -3], [4, 3, 4, 3, -4, -3, -4, -3], [1, 4, 1, 4, -1, -4, -1, -4], [-3, 4, -2, 3, 2, 4, -2, -3, 2, -4, 3, -2], [1, 4, 3, -4, 1, 4, -3, -4, -1, 4, -3, -4], [4, 3, 4, 1, 4, 3, -4, -1, -4, -3, -4, -1], [3, 2, 4, 3, 2, 4, 3, -4, -2, -3, -4, -2, -3, -4], [4, 3, 2, 1, 4, 3, 2, 4, 1, -2, -3, -4, -1, -3, -2, -3, -4, -1], [3, 2, -3, -4, 1, 4, 3, 1, 2, 4, -3, -4, -1, -2, -3, -4, -1, 4], [3, 1, -4, -3, 2, 4, -2, 3, -1, -4, 2, 4, 1, -3, -4, -1, -2, -3, 4, 1, -2, 4, -1, 2, 4, -2]]
 ```
 """
 function simplify(P::Presentation,lim=100)
@@ -3426,67 +3456,68 @@ julia> display_balanced(p)
 2: dbd=bdb
 3: cac=aca
 4: bcb=cbc
-5: dAca=Acad
+5: da⁻ca=a⁻cad
 6: dcdc=cdcd
 7: adad=dada
-8: dcDbdc=bdcbdB
+8: dcd⁻bdc=bdcbdb⁻
 9: dcdadc=adcdad
-10: adcDad=dcDadc
-11: BcccbdcAb=dcbACdddc
-julia> p=tryconjugate(p)
-Presentation: 4 generators, 11 relators, total length 100
-dcD=> Presentation: 4 generators, 10 relators, total length 90
-# dcD gives Presentation: 4 generators, 10 relators, total length 90
-Presentation: 4 generators, 10 relators, total length 90
+10: adcd⁻ad=dcd⁻adc
+11: b⁻c³bdca⁻b=dcba⁻c⁻d³c
 
 julia> p=tryconjugate(p)
-Dcd=> Presentation: 4 generators, 10 relators, total length 88
-# Dcd gives Presentation: 4 generators, 10 relators, total length 88
-Presentation: 4 generators, 10 relators, total length 88
+Presentation: 4 generators, 11 relators of total length 100
+dcD=> Presentation: 4 generators, 10 relators of total length 90
+# dcD gives Presentation: 4 generators, 10 relators of total length 90
+Presentation: 4 generators, 10 relators of total length 90
 
 julia> p=tryconjugate(p)
-dcD=> Presentation: 4 generators, 10 relators, total length 90
-Dbd=> Presentation: 4 generators, 10 relators, total length 96
-Aca=> Presentation: 4 generators, 9 relators, total length 84
-Presentation: 4 generators, 8 relators, total length 76
-# Aca gives Presentation: 4 generators, 8 relators, total length 76
-Presentation: 4 generators, 8 relators, total length 76
+Dcd=> Presentation: 4 generators, 10 relators of total length 88
+# Dcd gives Presentation: 4 generators, 10 relators of total length 88
+Presentation: 4 generators, 10 relators of total length 88
 
 julia> p=tryconjugate(p)
-Bcb=> Presentation: 4 generators, 8 relators, total length 70
-# Bcb gives Presentation: 4 generators, 8 relators, total length 70
-Presentation: 4 generators, 8 relators, total length 70
+dcD=> Presentation: 4 generators, 10 relators of total length 90
+Dbd=> Presentation: 4 generators, 10 relators of total length 96
+Aca=> Presentation: 4 generators, 9 relators of total length 84
+Presentation: 4 generators, 8 relators of total length 76
+# Aca gives Presentation: 4 generators, 8 relators of total length 76
+Presentation: 4 generators, 8 relators of total length 76
 
 julia> p=tryconjugate(p)
-Cac=> Presentation: 4 generators, 8 relators, total length 64
-# Cac gives Presentation: 4 generators, 8 relators, total length 64
-Presentation: 4 generators, 8 relators, total length 64
+Bcb=> Presentation: 4 generators, 8 relators of total length 70
+# Bcb gives Presentation: 4 generators, 8 relators of total length 70
+Presentation: 4 generators, 8 relators of total length 70
 
 julia> p=tryconjugate(p)
-caC=> Presentation: 4 generators, 8 relators, total length 58
-# caC gives Presentation: 4 generators, 8 relators, total length 58
-Presentation: 4 generators, 8 relators, total length 58
+Cac=> Presentation: 4 generators, 8 relators of total length 64
+# Cac gives Presentation: 4 generators, 8 relators of total length 64
+Presentation: 4 generators, 8 relators of total length 64
 
 julia> p=tryconjugate(p)
-Cac=> Presentation: 4 generators, 8 relators, total length 64
-Cbc=> Presentation: 4 generators, 7 relators, total length 50
-# Cbc gives Presentation: 4 generators, 7 relators, total length 50
-Presentation: 4 generators, 7 relators, total length 50
+caC=> Presentation: 4 generators, 8 relators of total length 58
+# caC gives Presentation: 4 generators, 8 relators of total length 58
+Presentation: 4 generators, 8 relators of total length 58
 
 julia> p=tryconjugate(p)
-cdC=> Presentation: 4 generators, 7 relators, total length 56
-Dcd=> Presentation: 4 generators, 7 relators, total length 54
-Cac=> Presentation: 4 generators, 7 relators, total length 48
-# Cac gives Presentation: 4 generators, 7 relators, total length 48
-Presentation: 4 generators, 7 relators, total length 48
+Cac=> Presentation: 4 generators, 8 relators of total length 64
+Cbc=> Presentation: 4 generators, 7 relators of total length 50
+# Cbc gives Presentation: 4 generators, 7 relators of total length 50
+Presentation: 4 generators, 7 relators of total length 50
 
 julia> p=tryconjugate(p)
-caC=> Presentation: 4 generators, 7 relators, total length 50
-Cdc=> Presentation: 4 generators, 7 relators, total length 50
-Dbd=> Dcd=> Presentation: 4 generators, 7 relators, total length 60
-Bab=> Aba=> Aca=> Presentation: 4 generators, 7 relators, total length 46
-# Aca gives Presentation: 4 generators, 7 relators, total length 46
-Presentation: 4 generators, 7 relators, total length 46
+cdC=> Presentation: 4 generators, 7 relators of total length 56
+Dcd=> Presentation: 4 generators, 7 relators of total length 54
+Cac=> Presentation: 4 generators, 7 relators of total length 48
+# Cac gives Presentation: 4 generators, 7 relators of total length 48
+Presentation: 4 generators, 7 relators of total length 48
+
+julia> p=tryconjugate(p)
+caC=> Presentation: 4 generators, 7 relators of total length 50
+Cdc=> Presentation: 4 generators, 7 relators of total length 50
+Dbd=> Dcd=> Presentation: 4 generators, 7 relators of total length 60
+Bab=> Aba=> Aca=> Presentation: 4 generators, 7 relators of total length 46
+# Aca gives Presentation: 4 generators, 7 relators of total length 46
+Presentation: 4 generators, 7 relators of total length 46
 
 julia> display_balanced(p)
 1: db=bd
@@ -3496,6 +3527,7 @@ julia> display_balanced(p)
 5: bcb=cbc
 6: cdcd=dcdc
 7: AdCacd=cAdCac
+[[4, 2, -4, -2], [2, 1, -2, -1], [3, 1, 3, -1, -3, -1], [1, 4, 1, -4, -1, -4], [2, 3, 2, -3, -2, -3], [3, 4, 3, 4, -3, -4, -3, -4], [-1, 4, -3, 1, 3, 4, -3, -1, 3, -4, 1, -3]]
 ```
 """
 function tryconjugate(p::Presentation;goal=[0,0],info=[0,0])
