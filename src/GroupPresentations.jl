@@ -23,7 +23,7 @@ FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻,e²,f²,ab⁻c,aec⁻,bd⁻c,cde⁻,afc⁻
 ```
 
 ```julia-rep1
-julia> simplify(F) # the main function of this package
+julia> simplify(G) # the main function of this package
 Presentation: 2 generators, 4 relators of total length 16
 Presentation: 2 generators, 3 relators of total length 10
 FreeGroup(a,c)/[a²,ac⁻ac⁻,c⁴]
@@ -93,32 +93,23 @@ for  more  information  look  at the docstrings of
 [`conjugate`](@ref),
 [`tryconjugate`](@ref).
 
-Finally,  if you have the packages GAP and PermGroups installed (and used),
-the  functions `length` and and `elements` are defined for `FpGroup`s (this
-uses GAP's Coxeter-Todd algorithm).
-```julia-rep1
+Finally, the Todd-Coxeter algorithm computes, if finite, a `PermGroup` from
+an  `FpGroup`. The permutations  represent the multiplication  table by the
+generators so they are on a large set of integers.
+```julia-repl
 julia> @AbsWord a,b
 
 julia> G=FpGroup([a,b])/[a^2,b^2,(a*b)^3]
 FreeGroup(a,b)/[a²,b²,ababab]
 
-julia> length(G)
-6
-
-julia> elements(G)
-6-element Vector{AbsWord}:
- .
- b
- ba
- a
- ab
- aba
+julia> PermGroup(G)
+Group((1,5)(2,4)(3,6),(1,2)(3,5)(4,6))
 ```
 """
 module GroupPresentations
 ## Changing Presentations
 #
-#The  functions `AddGenerator`, `AddRelator`, `RemoveRelator` can be used to
+#The  functions `add_generator`, `add_relator`, `remove_relator` can be used to
 #change a presentation. In general, they will change the isomorphism type of
 #the  group defined  by the  presentation, hence,  though they are sometimes
 #used  as subroutines by Tietze transformations functions like `Substitute`,
@@ -487,12 +478,20 @@ end
   modified::Bool
   numredunds::Int
 end
-# possible fields: tietze, nextFree, eliminationsLimit,
+# possible .prop fields: tietze, eliminationsLimit,
 # expandLimit, generatorsLimit, lengthLimit, loopLimit, debug,
 # saveLimit, searchSimultaneous, protected, status
 
+Base.copy(P::Presentation)=Presentation(copy(P.generators),
+ copy(P.inverses),copy(copy.(P.relators)),copy(P.flags),P.modified,
+ P.numredunds,copy(P.prop))
+
+Groups.gens(P::Presentation)=P.generators
+Groups.ngens(P::Presentation)=length(P.generators)
+(P::Presentation)(l::Int...)=isempty(l) ? AbsWord() : AbsWord(collect(l),gens(P))
+
 " `relators(P::Presentation)` return the relators of `P` as `AbsWord`s. "
-relators(P::Presentation)=AbsWord.(P.relators,Ref(P.generators))
+relators(P::Presentation)=AbsWord.(P.relators,Ref(gens(P)))
 
 """
 `FpGroup(P::Presentation)`
@@ -503,7 +502,7 @@ function FpGroup(P::Presentation)
   debug(P,3,"# converting presentation to FpGroup")
   if P.numredunds>0 RemoveGenerators(P) end
   sort!(P)
-  G=FpGroup(deepcopy(P.generators),relators(P),Dict{Symbol,Any}())
+  G=FpGroup(copy(gens(P)),copy(relators(P)),Dict{Symbol,Any}())
   if haskey(P, :imagesOldGens)
     G.imagesOldGens=deepcopy(P.imagesOldGens)
   end
@@ -513,19 +512,6 @@ function FpGroup(P::Presentation)
   G
 end
 
-Presentation(s::Vector{Symbol},r::Vector{AbsWord};debug=1)=
-  Presentation(AbsWord.(s),r;debug)
-
-function Presentation(v::Vector{Vector{Int}};debug=1)
-  gens=sort(unique(abs(x) for r in v for x in r))
-  if isempty(gens) return Presentation(AbsWord[],AbsWord[];debug) end
-  g=setdiff(1:maximum(gens),gens)
-  if !isempty(g) error("generators $g missing") end
-  vars=length(gens)<=26 ? Symbol.('a':'a'+length(gens)-1) :
-      map(i->Symbol("x",stringind(rio(),i)),1:length(gens))
-  Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v);debug)
-end
-  
 """
 `Presentation(G::FpGroup; debug=1)`
 
@@ -551,7 +537,6 @@ function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord};debug::Int=1)
   rels=map(w->reduceword(TietzeWord(w,gens);cyclically=true),grels)
   P=Presentation(deepcopy(gens),numgens:-1:-numgens,rels,fill(1,length(rels)),
                  false, 0, Dict{Symbol,Any}())
-  P.nextFree=numgens+1
   P.eliminationsLimit=100
   P.expandLimit=150
   P.generatorsLimit=0
@@ -561,11 +546,14 @@ function Presentation(gens::Vector{AbsWord},grels::Vector{AbsWord};debug::Int=1)
   P.saveLimit=10
   P.searchSimultaneous=20
   PrintStatus(P,2)
-  P.protected=length(P.generators);HandleLength1Or2Relators(P);P.protected=0
+  P.protected=ngens(P);HandleLength1Or2Relators(P);P.protected=0
   sort!(P)
   PrintStatus(P,2)
   P
 end
+
+Presentation(s::Vector{Symbol},r::Vector{AbsWord};debug=1)=
+  Presentation(AbsWord.(s),r;debug)
 
 """
 `Presentation(s::String; debug=1)`
@@ -588,8 +576,24 @@ function Presentation(s::String;debug=1)
   Presentation(AbsWord.(atoms),rels;debug)
 end
 
-Base.getindex(T::Presentation,i)=T.inverses[length(T.generators)+1-i]
-Base.setindex!(T::Presentation,j,i)=T.inverses[length(T.generators)+1-i]=j
+"""
+`Presentation(v::Vector{Vector{Int}};debug=1)`
+
+Constructs a presentation from `v`, a list of Tietze words, using for generators
+the alphabet `a:z`, then `x_i` for integers `i`.
+"""
+function Presentation(v::Vector{Vector{Int}};debug=1)
+  gens=sort(unique(abs(x) for r in v for x in r))
+  if isempty(gens) return Presentation(AbsWord[],AbsWord[];debug) end
+  g=setdiff(1:maximum(gens),gens)
+  if !isempty(g) error("generators $g missing") end
+  vars=length(gens)<=26 ? Symbol.('a':'a'+length(gens)-1) :
+      map(i->Symbol("x",stringind(rio(),i)),1:length(gens))
+  Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v);debug)
+end
+  
+Base.getindex(T::Presentation,i)=T.inverses[ngens(T)+1-i]
+Base.setindex!(T::Presentation,j,i)=T.inverses[ngens(T)+1-i]=j
 
 # reduce cyclically a Tietze word
 function reduceword(w::Vector{Int};cyclically=false)
@@ -638,6 +642,13 @@ function debug(P,i,arg...)
 end
 
 include("toddcoxeter.jl")
+"""
+`PermGroups.PermGroup(F::FpGroup;maxcosets=1000)`
+`PermGroups.PermGroup(P::Presentation;maxcosets=1000)`
+
+Computes  a `PermGroup` for `F` or `P`. The algorithm may need to enumerate
+a number of cosets equal to several times the size of the result group.
+"""
 PermGroups.PermGroup(p::Presentation;opt...)=toddcoxeter(p.relators;opt...)
 PermGroups.PermGroup(F::FpGroup;opt...)=PermGroup(Presentation(F);opt...)
 
@@ -653,7 +664,7 @@ the last call.
 """
 function PrintStatus(P::Presentation,debug=0)
   if P.debug<debug return end
-  status=[length(P.generators)-P.numredunds, length(P.relators), 
+  status=[ngens(P)-P.numredunds, length(P.relators), 
           sum(length,P.relators;init=0)]
   if !haskey(P,:status) || status!=P.status
     P.status=status
@@ -665,22 +676,22 @@ end
 function Base.show(io::IO, p::Presentation)
   print(io,"Presentation")
   if haskey(p,:name) print(io," ",p.name) end
-  print(io,": ",plural(length(p.generators)-p.numredunds,"generator"),
+  print(io,": ",plural(ngens(p)-p.numredunds,"generator"),
         ", ",plural(length(p.relators),"relator")," of total length ",
         sum(length,p.relators;init=0))
 end
 
 function Base.dump(T::Presentation)
-  l=filter(i->T[-i]!=-T[i],eachindex(T.generators))
+  l=filter(i->T[-i]!=-T[i],eachindex(gens(T)))
   l1=filter(i->T[-i]==T[i],l)
   println("# F relator")
   for i in eachindex(T.relators)
-    println(rio(),"$i:",T.flags[i]," ",AbsWord(T.relators[i],T.generators))
+    println(rio(),"$i:",T.flags[i]," ",T(T.relators[i]...))
   end
-  print("gens=");join(rio(),T.generators,",")
-  if length(l1)>0 print(" involutions:");join(rio(),T.generators[l1],",") end
+  print("gens=");join(rio(),gens(T),",")
+  if length(l1)>0 print(" involutions:");join(rio(),gens(T)[l1],",") end
   println(" modified=",T.modified," numredunds=",T.numredunds)
-  if l1!=l display(stack(map(i->[T.generators[i],T[i],T[-i]],l))) end
+  if l1!=l display(stack(map(i->[gens(T)[i],T[i],T[-i]],l))) end
 end
 
 """
@@ -713,34 +724,32 @@ julia> display_balanced(p)
 function display_balanced(T;dumb=false)
   f(i,w)=vcat(w,w)[i:i+div(length(w),2)-1]
   used=Set{Int}();for x in T.relators, y in x push!(used,abs(y)) end
-  if length(T.generators)>length(used)
-    println(plural(length(T.generators)-length(used)," free generator"))
+  if ngens(T)>length(used)
+    println(plural(ngens(T)-length(used)," free generator"))
   end
   for (i,w) in enumerate(T.relators)
     lw=length(w)
-    if isodd(lw) || dumb println(rio(),i, ": ", AbsWord(w,T.generators), "=1")
+    if isodd(lw) || dumb println(rio(),i, ": ", T(w...), "=1")
     elseif lw>0
       m=argmax(map(i->count(>(0), f(i,w)), 1:lw))
-      println(rio(),"$i: ",AbsWord(f(m,w),T.generators),"=",
-                     AbsWord(-reverse(f(m+div(lw,2),w)),T.generators))
+      println(rio(),"$i: ",T(f(m,w)...),"=",T(-reverse(f(m+div(lw,2),w))...))
     end
   end
 end
 
 """
-`showgens(P,list=eachindex(P.generators))`
+`showgens(P,list=eachindex(gens(P)))`
 
 prints  the generators of `P` with the total number of their occurrences in
 the  relators, and notes involutions. A  second `list` argument prints only
 those generators.
 """
-function showgens(T::Presentation,list=eachindex(T.generators))
-  gens=T.generators
-  if isempty(gens) println("#I  there are no generators");return end
+function showgens(T::Presentation,list=eachindex(gens(T)))
+  if ngens(T)==0 println("#I  there are no generators");return end
   occur=Occurrences(T)
   if list isa Integer list=[list] end
   for i in list
-    print(i, ". ", gens[i]," ",plural(occur[1][i],"occurrence"))
+   print(i, ". ", T(i)," ",plural(occur[1][i],"occurrence"))
     print(" (",plural(occur[3][i],"time")," in relator ",occur[2][i],")")
     if T[-i]>0 print(" involution") end
     println()
@@ -757,34 +766,30 @@ This  is  useful  information  in  the context of the `Substitute` command.
 """
 function showpairs(P::Presentation;n::Integer=10)
   for (m,(num,i,j,k)) in enumerate(MostFrequentPairs(P,n))
-    geni=P.generators[i];if k>1 geni=inv(geni) end
-    genj=P.generators[j];if isodd(k) genj=inv(genj) end
-    println(rio(),"#I $m. ",plural(num,"occurrence")," of ",geni*genj)
+    if k>1 i=-i end
+    if isodd(k) j=-j end
+    println(rio(),"#I $m. ",plural(num,"occurrence")," of ",P(i,j))
   end
 end
 
-(P::Presentation)(l::Int...)=AbsWord(collect(l),P.generators)
-
 """
-`AddGenerator( P[, generator])`
+`add_generator(P[, generator])`
 
-`AddGenerator` adds a new generator to the list of generators.
+`add_generator` adds a new generator to the list of generators.
 
-If  you don't specify a second  argument, then `AddGenerator` will define a
-new  abstract generator `_xi` where `i` is the least positive integer which
-has not yet been used as a generator number. Though this new generator will
-be  printed as `_xi`, you  will have to use  the external variable `P.i` if
-you want to access it.
+If  you don't specify a second  argument, then `add_generator` will define a
+new  abstract generator which is the first unused letter in `a:z` if it exists,
+otherwise the first unused `x_i` for `i` starting with 1.
 
 If  you specify  a second  argument, then  `generator` must  be an abstract
-generator which does not yet occur in the presentation. `AddGenerator` will
+generator which does not yet occur in the presentation. `add_generator` will
 add it to the presentation.
 """
-function AddGenerator(P::Presentation,gen=nothing)
+function add_generator(P::Presentation,gen=nothing)
   Check(P)
   if gen===nothing
-    gen=NewGenerator(P)
-    debug(P,1,"AddGenerator  new generator is ", gen)
+    gen=newgen(P)
+    debug(P,1,"add_generator  new generator is ", gen)
   else
     if !(gen isa AbsWord && length(gen)==1)
       error("second argument must be an abstract generator")
@@ -801,47 +806,43 @@ function AddGenerator(P::Presentation,gen=nothing)
 end
 
 """
-NewGenerator(P::Presentation)
+newgen(P::Presentation)
 
-defines a new abstract generator and adds it to `P`.
-
-Let i be the smallest positive integer for which the generator `_xi` is not
-a  generator of  `P`. A  new abstract  generator `_xi`  is defined and then
-added to `P.generators`.
-
-Warning:  `NewGenerator`  is  an  internal  subroutine  of  the  Tietze
-routines.  You should not call it.  Instead, you should call the function
-`AddGenerator`, if needed.
+let 'x' be the first unused letter in `a:z` for `gens(P)` if it exists,
+otherwise the first unused `x_i` for `i` starting with 1.
+A  new   abstract  generator  `x`  is  added  to `P.generators`.
 """
-function NewGenerator(P::Presentation)
-  new=P.nextFree
-  gen=AbsWord(Symbol("_x",new))
-  while gen in P.generators
-    new+=1
-    gen=AbsWord(Symbol("_x",new))
+function newgen(P::Presentation)
+  i=0
+  while AbsWord(Symbol('a'+i)) in gens(P) && i<=25 i+=1 end
+  if i==26
+    i=1
+    while AbsWord(Symbol("x_",i)) in gens(P) i+=1 end
+    gen=AbsWord(Symbol("x_",i))
+  else
+    gen=AbsWord(Symbol('a'+i))
   end
-  P.nextFree=new+1
   push!(P.generators,gen)
   P.inverses=vcat(length(P.generators),P.inverses,-length(P.generators))
   gen
 end
 
 """
-`AddRelator(P::Presentation, word::AbsWord)`
+`add_relator(P::Presentation, word::AbsWord)`
 
 adds  the word `word` to the list of  relators.  `word` must
 be a word in the generators of the given presentation.
 """
-function AddRelator(P::Presentation, word::AbsWord)
+function add_relator(P::Presentation, word::AbsWord;stop=true)
   Check(P)
-  debug(P,3,"AddRelator adding ", word)
+  debug(P,3,"add_relator adding ", word)
   rel=reduceword(TietzeWord(word,P.generators);cyclically=true)
   if !isempty(rel)
     push!(P.relators,rel)
     push!(P.flags,1)
     P.modified=true
   end
-  tracing(P,false)
+  if stop tracing(P,false) end
 end
 
 """
@@ -860,6 +861,7 @@ generator  with the larger  number is substituted  by the other  one in all
 relators and finally eliminated from the set of generators.
 """
 function HandleLength1Or2Relators(T::Presentation)
+  dump(T)
   debug(T,3,"Handle length 1 or 2 relators")
   gens=T.generators
   rels=T.relators
@@ -898,7 +900,7 @@ function HandleLength1Or2Relators(T::Presentation)
             if rep1!=rep2 # not an involution
               if T[rep2]==T[-rep2] && T[-rep1]<0 # rep2^2=1 => rep1^2=1
                 push!(rels,[rep1, rep1])
-                push!(T.flags,1)
+                push!(T.flags,3)
               end
               if abs(rep2)>T.protected
                 if T[rep2]==rep2 T.numredunds+=1 end
@@ -934,6 +936,7 @@ function HandleLength1Or2Relators(T::Presentation)
     end
   end
   if T.numredunds>0 RemoveGenerators(T) end
+  dump(T)
 end
 
 """
@@ -1366,17 +1369,16 @@ function PresentationViaCosetTable(G,arg...)
 end
 
 """
-`RemoveRelator(P,n)`
+`remove_relator(P,n)`
 
-`RemoveRelator`  removes the `n`th relator and  then resorts the  list of
-relators in the given presentation `P`.
+removes the `n`th relator of `P`.
 """
-function RemoveRelator(T::Presentation, n)
+function remove_relator(T::Presentation, n)
   if !(n in eachindex(T.relators)) error("relator number out of range") end
   rels=T.relators
-  debug(T,3,"RemoveRelator removing $n-th relator")
+  debug(T,3,"remove_relator removing $n-th relator")
   leng=length(T.relators[n])
-  if leng==2 && rels[n][1]==rels[n][2]
+  if leng==2 && rels[n][1]==rels[n][2] # use forget_involution?
     num=rels[n][1]
     if num<0 num=-num end
     if T[-num]==num T[-num]=-num end
@@ -1501,7 +1503,7 @@ function Eliminate(T::Presentation,n=nothing)
 end
 
 # Generator  i is  recorded as  an involution  by T[i]==T[-i]==i  (see also
-# RemoveRelator,  which  clears  the  record  when  the  relator  [i,i]  is
+# remove_relator,  which  clears  the  record  when  the  relator  [i,i]  is
 # removed).  The only thing that justifies the record is such a relator, so
 # it  has to be forgotten whenever that relator is rewritten into something
 # else.
@@ -1780,7 +1782,7 @@ function FindCyclicJoins(P::Presentation)
               if fac[1]<0 gen[1]=inv(gen[1]) end
               if fac[2]<0 gen[2]=inv(gen[2]) end
               word=gen[k]*gen[3-k]^(e[3-k]*gcdx(e[k], exp[k])[2])
-              AddRelator(P, word)
+              add_relator(P, word)
               numrels=length(T.relators)
               n=num[k]
             end
@@ -1833,6 +1835,7 @@ which we will describe next).
 As an example  we  compute  a presentation of a  subgroup of index 408 in
 `PSL(2,17)`.
 
+```
 |    gap> F2 := FreeGroup( "a", "b" );;
     gap> G := F2 / [ F2.1^9, F2.2^2, (F2.1*F2.2)^4, (F2.1^2*F2.2)^3 ];;
     gap> a := G.1;;  b := G.2;;
@@ -1840,8 +1843,8 @@ As an example  we  compute  a presentation of a  subgroup of index 408 in
     gap> Index( G, H );
     408
     gap> P := PresentationSubgroup( G, H );
-    << presentation with 8 gens and 36 rels of total length 111 >>
-    gap> DisplayPresentation(P);
+    << presentation with 8 gens and 36 rels of total length 111 >>|
+    julia> P=Presentation("
     1: a=a⁻
     2: g=g⁻
     3: c=c⁻
@@ -1873,26 +1876,28 @@ As an example  we  compute  a presentation of a  subgroup of index 408 in
     29: ac=c⁻e
     30: ac=b²
     31: cb⁻=bc⁻
-    32: aca=c⁻a⁻c⁻
-    gap> P.protected := 2;;
-    gap> P.debug := 2;;
-    gap> simplify( P );
-    &I  eliminating _x7 = _x5
-    &I  eliminating _x5 = _x4
-    &I  eliminating _x18 = _x3
-    &I  eliminating _x8 = _x3
-    &I  there are 4 generators and 8 relators of total length 21
-    &I  there are 4 generators and 7 relators of total length 18
-    &I  eliminating _x4 = _x3^-1*_x2^-1
-    &I  eliminating _x3 = _x2*_x1^-1
-    &I  there are 2 generators and 4 relators of total length 14
-    &I  there are 2 generators and 4 relators of total length 13
-    &I  there are 2 generators and 3 relators of total length 9
-    gap> relators( P );
-    &I  1. _x1^2
-    &I  2. _x2^3
-    &I  3. _x2*_x1*_x2*_x1 |
-
+    32: aca=c⁻a⁻c⁻")
+    Presentation: 8 generators, 32 relators of total length 98
+    julia> P.protected=2;
+    julia> P.debug=2;
+    julia> simplify(P)
+#Handle12 eliminating f=E redund=1
+#Handle12 eliminating e=d redund=2
+#Handle12 eliminating e=d redund=2
+#Handle12 eliminating h=c redund=3
+#Handle12 eliminating g=c redund=4
+Presentation: 4 generators, 8 relators of total length 21
+Presentation: 4 generators, 7 relators of total length 18
+#EliminateGen1 eliminating d=bc
+#EliminateGen1 eliminating c=aB
+Presentation: 2 generators, 4 relators of total length 14
+Presentation: 2 generators, 3 relators of total length 9
+    julia> relators(P)
+3-element Vector{AbsWord}:
+ a²
+ b³
+ baba
+```
 Note that the number  of loops over the two phases as well  as the number
 of  subword   searches  or  generator  eliminations  in  each  phase  are
 determined by a set of option parameters which may  heavily influence the
@@ -2392,9 +2397,9 @@ function SearchC(T::Presentation,i,j,equal=false)
 #     if l1<l println("!!!!hash",hk) end
       if l1<l error("!")
       else
-#       print("$k:",alphab(rel),"+$w:(",alphab(rels[w]),")$pos1:$pos2($l1)")
+#      print(rio(),"$k:",AbsWord(rel,gens(T)),"+$w:(",AbsWord(rels[w],gens(T)),")$pos1:$pos2($l1)")
         rel=doreplace(rels[w],rel,pos1,pos2,l1)
-#       println("=>",alphab(rel))
+#       println(rio(),"=>",AbsWord(rel,gens(T)))
       end
       rel=reduceword(rel,T)
 #     println("=>",alphab(rel))
@@ -2510,12 +2515,12 @@ function Search(P::Presentation)
       end
       if k>length(T.relators) j=lastj end
       if i<=j
- #      @show T.flags
+#       @show T.flags,i,j
         altered=SearchC(T,i,j)
         if !isempty(altered)
           debug(P,3,"SearchC($i,$j): ",length(altered)," altered")
           modified=true
-          T.flags[altered].=2
+          T.flags[altered]=map(x->x==3 ? x : 2,T.flags[altered])
  #        @show T.flags,altered
         end
         i=j
@@ -2614,17 +2619,16 @@ Basically,  it substitutes a squarefree word of length 2 as a new generator
 and  then eliminates a generator from  the extended generator list. We will
 describe this process in more detail.
 
-`n`  is expected to be a positive integer, and `eliminate` is expected to be
+`n` is expected to be a positive integer, and `eliminate` is expected to be
 0, 1, or 2.
 
-`Substitute`   first  determines  the  `n`  most  frequently  occurring
-squarefree  relator subwords  of  length  2 and sorts  them by decreasing
-numbers of occurrences.  Let `ab` be the `n`th word in that list, and let
-`i` be the smallest  positive integer  which has not  yet  been used as a
-generator number.  Then `Substitute` defines a new  generator `P.i`
-(see  `AddGenerator` for  details), adds it to  the presentation together
-with a new relator `P.i^{-1}ab`, and  replaces all occurrences of `ab` in
-the given relators by `P.i`.
+`Substitute`  first determines the `n` most frequently occurring squarefree
+relator  subwords  of  length  2  and  sorts  them by decreasing numbers of
+occurrences.  Let `ab` be the  `n`th word in that  list, and let `x` be the
+first  available name for a new generator (see `add_generator` for details)
+Then  `Substitute` defines a new generator `x`, adds it to the presentation
+together  with a new relator `x\\ab`,  and replaces all occurrences of `ab`
+in the given relators by `x`.
 
 Finally,  it eliminates some generator  from  the  extended presentation.
 The  choice  of that  generator  depends  on  the  actual  value  of  the
@@ -2632,23 +2636,22 @@ The  choice  of that  generator  depends  on  the  actual  value  of  the
 
 If `eliminate` is zero, then the generator to be eliminated is  chosen as
 by the  `Eliminate` command.  This means  that in this case it may well
-happen that  it is the generator `P.i` just introduced which  is  now
+happen that  it is the generator `x` just introduced which  is  now
 deleted  again  so  that  you do  not  get  any  remarkable  progress  in
 transforming  your  presentation.   On  the other  hand,  this  procedure
 guaranties that the total length of the relators will not be increased by
 a call of `Substitute` with `eliminate = 0`.
 
-Otherwise,  if `eliminate` is 1 or 2, then  `Substitute` eliminates the
-respective factor of the  substituted word `ab`, i.e., `a` for `eliminate
-=  1` or  `b` for `eliminate = 2`.  In this case, it may well happen that
-the  total  length  of  the  relators  increases,  but  sometimes such an
-intermediate  extension  is  the  only  way to  finally  reduce  a  given
-presentation.
+Otherwise,  if  `eliminate`  is  1  or  2, then `Substitute` eliminates the
+respective factor of the substituted word `ab`, i.e., `a` for `eliminate=1`
+or  `b` for `eliminate=2`. In this case,  it may well happen that the total
+length  of  the  relators  increases,  but  sometimes  such an intermediate
+extension is the only way to finally reduce a given presentation.
 
-In order to decide which arguments might be appropriate for the next call
-of `Substitute`, often it  is helpful to print out a  list of the  most
-frequently occurring squarefree  relator subwords of  length 2.  You  may
-use the `showpairs` command described below to do this.
+In  order to decide which arguments might  be appropriate for the next call
+of  `Substitute`, it is helpful to print  out a list of the most frequently
+occurring  squarefree relator subwords of length 2. The `showpairs` command
+does this.
 
 As an example we handle a subgroup of index 266 in the Janko group `J₁`.
 
@@ -2658,7 +2661,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     gap> a := J1.1;;  b := J1.2;;
     gap> H := Subgroup ( J1, [ a, b^(a*b*(a*b^-1)^2) ] );;
     gap> P := PresentationSubgroup( J1, H );
-    << presentation with 23 gens and 82 rels of total length 530 >>|
+```
     P=Presentation("
 1: a=a⁻
 2: r=r⁻
@@ -2733,7 +2736,8 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
 71: jrglql=mg⁻m⁻j⁻r⁻g⁻
 72: bhgm⁻jmg=df⁻l⁻fd⁻b⁻h
 73: km⁻jmk⁻rkm⁻j=r⁻km⁻j⁻mk⁻r⁻km⁻
-74: jmgm⁻jmgm⁻jm=mg⁻m⁻j⁻mg⁻m⁻j⁻mg⁻
+74: jmgm⁻jmgm⁻jm=mg⁻m⁻j⁻mg⁻m⁻j⁻mg⁻")
+Presentation: 23 generators, 74 relators of total length 461
 |    gap> GoGo( P );
     &I  there are 3 generators and 47 relators of total length 1368
     &I  there are 2 generators and 46 relators of total length 3773
@@ -2781,7 +2785,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     &I  4.  14  occurrences of  _x23^-1 * _x30^-1
     gap> & If we save a copy of the current presentation, then later we
     gap> & will be able to restart the computation from the current state
-    gap> P1 := Copy( P );;
+    gap> P1 := copy( P );;
     gap> & Just for demonstration, let's make an inconvenient choice
     gap> Substitute( P, 3, 1 );
     &I  substituting new generator _x31 defined by _x23*_x30
@@ -2791,7 +2795,7 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     &I  there are 2 generators and 9 relators of total length 105
     gap> & The presentation is worse than the one we have saved, so let's
     gap> & restart from that one again
-    gap> P := Copy( P1 );
+    gap> P := copy( P1 );
     << presentation with 2 gens and 10 rels of total length 101 >>
     gap> Substitute( P, 2, 1);
     &I  substituting new generator _x31 defined by _x23^-1*_x30
@@ -2813,8 +2817,9 @@ As an example we handle a subgroup of index 266 in the Janko group `J₁`.
     &I  3. _x31^-1*_x32^-1*_x31^-1*_x32^-1*_x31^-1*_x32^-1
     &I  4. _x31*_x32*_x31^-1*_x32*_x31^-1*_x32*_x31*_x32^-2
     &I  5. _x31^-1*_x32^2*_x31*_x32^-1*_x31^2*_x32^-1*_x31*_x32^2 |
+```
 
-As shown in the preceding example, you can use the `Copy` command to save
+As shown in the preceding example, you can use the `copy` command to save
 a copy of a presentation and to restart from it  again if you want
 to try an alternative strategy.  
 """
@@ -2831,15 +2836,15 @@ function Substitute(P::Presentation,n::Int=1,elim::Int=0)
   if k>1 i=T[-i] end
   if isodd(k) j=T[-j] end
   pair=[i, j]
-  gen=NewGenerator(P)
-  word=AbsWord(pair,T.generators)
+  gen=newgen(P)
+  word=T(pair...)
   debug(P,1,"Substitute new generator ",gen," defined by ", word)
-  AddRelator(P,inv(gen)*word)
+  add_relator(P,gen\word;stop=false)
   UpdateGeneratorImages(P, pair)
-  debug=P.debug;P.debug=0;Search(P);
+  sdebug=P.debug;P.debug=0;Search(P);
   P.debug=2
   if elim>0 EliminateGen(P, abs(pair[elim])) else EliminateGen1(P) end
-  P.debug=debug
+  P.debug=sdebug
   if T.modified Search(P) end
   if T.numredunds>0 RemoveGenerators(P) end
   PrintStatus(P,1)
@@ -2847,8 +2852,8 @@ end
 
 """
 `find_exponents(presentation)`  tries  to  find  exponents  for  the Tietze
-generators  and  returns them  in  a  list  parallel  to  the  list  of the
-generators.
+generators  to  use  in  SubstituteCyclicJoins  and  returns them in a list
+parallel to the list of the generators.
 """
 function find_exponents(T::Presentation)
   debug(T,3,"find generator exponents")
@@ -2896,12 +2901,12 @@ function SubstituteCyclicJoins(P::Presentation)
       num2=abs(rel[2])
       exp2=exponents[num2]
       if exp1>0 && exp2>0 && gcd(exp1, exp2)==1
-        gen=NewGenerator(P)
+        gen=newgen(P)
         gen2=gens[num2]
         debug(P,1,"I substituting new generator ",gen," defined by ",
                 gens[num1]*gen2)
-        AddRelator(P, gens[num1]/gen^exp2)
-        AddRelator(P, gen2/gen^exp1)
+        add_relator(P, gens[num1]/gen^exp2;stop=false)
+        add_relator(P, gen2/gen^exp1;stop=false)
         UpdateGeneratorImages(P,[num1, num2])
         debug=P.debug;P.debug=2;
         Eliminate(P,gens[num1]);Eliminate(P,gen2);
@@ -2920,51 +2925,40 @@ function SubstituteCyclicJoins(P::Presentation)
 end
 
 """
-`Substitute(P::Presentation,word[,string])`
+`Substitute(P::Presentation,word[,string::String])`
 
 `word`  is be either an abstract word or a Tietze word in the generators of
 `P`.  It substitutes the given word as a new generator of `P`. This is done
 as follows.
 
 First,  `Substitute` creates a new abstract generator, `g` say, and adds it
-to the presentation `P`, then it adds a new relator `g^{-1}⋅word` to `P`.
+to the presentation `P`, then it adds a new relator `g\\word` to `P`.
 
-If  a  string  `string`  has  been  specified  as  third  argument, the new
-generator  `g` will be named  by `string`, otherwise it  will get a default
-name  `_xi` as  described with  the function  `AddGenerator` (see "Changing
-Presentations").
+If  a `string` has been specified as  third argument, the new generator `g`
+will  be named by `string`,  otherwise it will get  a default name as
+described in the function `add_generator`.
 
-More precisely: If, for instance, |word| is an abstract word, a call
+More precisely: If, for instance, `word` is an abstract word, a call
 
-|    Substitute( P, word );|
+`Substitute( P, word )`
 
 is more or less equivalent to
 
-|    AddGenerator( P );
-    g := P.generators[Length( P.generators )];
-    AddRelator( P, g^-1 * word );|
+`add_generator(P);add_relator(P,P.generators[end]\\word)|`
 
-whereas a call
-|    Substitute( P, word, string );|
+whereas a call `Substitute(P,word,string)`
 is more or less equivalent to
 
-|    g := AbstractGenerator( string );
-    AddGenerator( P, g );
-    AddRelator( P, g^-1 * word );|
+`g=AbsWord(string);add_generator(P,g);add_relator(P,g\\word )`
 
-The   essential  difference   is,   that  `Substitute`,  as  a   Tietze
-transformation  of `P`, saves and updates  the lists  of generator images
-and preimages if  they are being  traced under the Tietze transformations
-applied to `P` (see  the function `tracing` below), whereas
-a call  of the  function `AddGenerator` (which   does not perform  Tietze
-transformations) will delete these lists and hence terminate the tracing.
+The  essential difference is, that `Substitute`, as a Tietze transformation
+of  `P`, saves and updates  the lists of generator  images and preimages if
+they  are being traced under the Tietze transformations applied to `P` (see
+the   function   `tracing`   below),   whereas   a  call  of  the  function
+`add_generator` (which does not perform Tietze transformations) will delete
+these lists and hence terminate the tracing.
 
-Example.
-
-|    gap> G := PerfectGroup( 960, 1 );
-    PerfectGroup(960,1)
-    gap> P := Presentation( G );
-    << presentation with 6 gens and 21 rels of total length 84 >>
+Example. (Presentation(PerfectGroup(960,1)) in GAP3).
 ```julia-rep1
 P=Presentation("
 1: a=a⁻
@@ -2989,6 +2983,8 @@ P=Presentation("
 20: b⁻dbfedc=1
 21: babab=a⁻b⁻a⁻b⁻a⁻
 ")
+Presentation: 6 generators, 21 relators of total length 84
+
 julia> P.generators
 6-element Vector{AbsWord}:
  a
@@ -3012,10 +3008,8 @@ julia> a,b=P.generators[1:2]
  a
  b
 
-julia> GroupPresentations.Substitute( P, a*b, :ab )
-#started tracing generator images
-#Substitute new generator ab defined by ab
-#started tracing generator images
+julia> GroupPresentations.Substitute( P, a*b, :c )
+#Substitute new generator c defined by ab
 Presentation: 4 generators, 11 relators of total length 83
 
 julia> GroupPresentations.Go(P)
@@ -3028,7 +3022,8 @@ julia> showgens(P)
 3. ab 26 occurrences
 ```
 """
-function Substitute(P::Presentation,word::Union{Vector{Int},AbsWord},arg...)
+function Substitute(P::Presentation,word::Union{Vector{Int},AbsWord},s::Symbol=
+   Symbol(""))
   Check(P)
   gens=P.generators
   if word isa Vector
@@ -3042,15 +3037,15 @@ function Substitute(P::Presentation,word::Union{Vector{Int},AbsWord},arg...)
     images=P.imagesOldGens
     delete!(P,:imagesOldGens)
   end
-  if length(arg)==1
-    gen=AbsWord(arg[1])
-    AddGenerator(P, gen)
+  if s==Symbol("")
+    add_generator(P)
+    gen=gens(P)[end]
   else
-    AddGenerator(P)
-    gen=P.generators[end]
+    gen=AbsWord(s)
+    add_generator(P, gen)
   end
   debug(P,1,"Substitute new generator ", gen," defined by ", word)
-  AddRelator(P,inv(gen)*word)
+  add_relator(P,gen\word)
   if images isa Vector
     P.imagesOldGens=images
     UpdateGeneratorImages(P, tzword)
@@ -3059,7 +3054,7 @@ function Substitute(P::Presentation,word::Union{Vector{Int},AbsWord},arg...)
 end
 
 """
-`tracing(P::Presentation,stop=false)`
+`tracing(P::Presentation,nostop=true)`
 
 a  sequence of  Tietze transformations  applied to  a presentation `P₁` and
 ending  up with a presentation `P₂`, defines an isomorphism `φ` between the
@@ -3075,26 +3070,26 @@ stop tracing.
 `P.oldGenerators`:  is  initialized  to  a  copy of `P.generators`.
 
 `P.imagesOldGens`:  is the list `φ(old generators)`  as Tietze words in the
-new generators. Its `i`-th entry is initialized to the Tietze word |[i]|.
+new generators. Its `i`-th entry is initialized to the Tietze word `[i]`.
 
 `P.preImagesNewGens`: The list `φ⁻¹(new generators)` as Tietze words in the
-old generators. Its `i`-th entry is initialized by the Tietze word |[i]|.
+old generators. Its `i`-th entry is initialized by the Tietze word `[i]`.
 
 The  existence of  these fields  will cause  the Tietze  transformations to
 update the lists `imagesOldGens` and `preImagesNewGens`.
 
 There are a few restrictions concerning the tracing of generator images:
 
-The  functions `AddGenerator`, `AddRelator`, and `RemoveRelator` may change
+The  functions `add_generator`, `add_relator`, and `remove_relator` may change
 the  isomorphism type  of the  presentation. Therefore,  if any  of them is
 called, it will call `tracing(P,false)`.
 
-You  can reinitialize  tracing at  any later  state by  calling `tracing()`
+You  can reinitialize  tracing at  any later  state by  calling `tracing(P)`
 again: if the above fields do already exist when `tracing` is being called,
 they will be initialized again.
 """
-function tracing(P::Presentation,stop=false)
-  if stop 
+function tracing(P::Presentation,nostop=true)
+  if !nostop 
     if !haskey(P, :imagesOldGens) return end
     delete!(P, :imagesOldGens)
     delete!(P, :preImagesNewGens)

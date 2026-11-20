@@ -37,7 +37,7 @@ end
 @test mytest("GroupPresentations.jl","@AbsWord a,b,c,d,e,f","nothing")
 @test mytest("GroupPresentations.jl","F=FpGroup([a,b,c,d,e,f])","FreeGroup(a,b,c,d,e,f)")
 @test mytest("GroupPresentations.jl","G=F/[a^2,b^2,d*f^-1,e^2,f^2,a*b^-1*c,a*e*c^-1,b*d^-1*c,c*d*e^-1,a*f*c^-2,c^4]","FreeGroup(a,b,c,d,e,f)/[a²,b²,df⁻,e²,f²,ab⁻c,aec⁻,bd⁻c,cde⁻,afc⁻²,c⁴]")
-@test mytest("GroupPresentations.jl","simplify(G)","FreeGroup(a,c)/[a²,ac⁻ac⁻,c⁴]")
+@test mytest("GroupPresentations.jl","simplify(G)","FreeGroup(b,c)/[b²,c⁻bc⁻b,c⁴]")
 @test mytest("GroupPresentations.jl","P=Presentation(\"\n1: a=a⁻\n2: e=e⁻\n3: f=f⁻\n4: c=c⁻\n5: d=d⁻\n6: b³=1\n7: fc=c⁻f⁻\n8: dc=c⁻d⁻\n9: fe=e⁻f⁻\n10: ec=c⁻e⁻\n11: da=a⁻f⁻\n12: ed=d⁻e⁻\n13: fd=d⁻f⁻\n14: ca=a⁻e⁻\n15: ea=a⁻c⁻\n16: fa=a⁻d⁻\n17: fb=be⁻\n18: b⁻cbfd=1\n19: b⁻ebfe=1\n20: b⁻dbfedc=1\n21: babab=a⁻b⁻a⁻b⁻a⁻\n\")","Presentation: 6 generators, 21 relators of total length 84")
 @test mytest("GroupPresentations.jl","tracing(P)","nothing")
 @test mytest("GroupPresentations.jl","GroupPresentations.Go(P)","Presentation: 3 generators, 10 relators of total length 81")
