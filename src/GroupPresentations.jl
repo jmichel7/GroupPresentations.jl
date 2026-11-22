@@ -311,10 +311,13 @@ end
 
 `AbsWord(word::Vector{Int}, gens::Vector{Symbol})`
 
+`AbsWord(word::Vector{Int}, P::Presentation)`
+
 `AbsWord(word::Vector{Int})`
 
-Tranforms Tietze word `word` to an absword, using given generators `gens`.
-If no list of generators is given, the list `Symbol.('a':'z')` is used.
+Transforms Tietze word `word` to an absword, using given generators `gens`.
+In the third case, use `gens(P)`.
+In the fourth case, the list `Symbol.('a':'z')` is used.
 
 ```julia-repl
 julia> AbsWord([-1,-2,1,-3,-3],AbsWord.([:a,:b,:c]))
@@ -330,6 +333,7 @@ a⁻b⁻ac⁻²
 AbsWord(tz::Vector{Int},gens::Vector{AbsWord})=AbsWord(tz,mon.(gens))
 AbsWord(tz::Vector{Int},ss::Vector{Symbol})=AbsWord(map(i->ss[abs(i)]=>sign(i),tz))
 AbsWord(tz::Vector{Int})=AbsWord(tz,Symbol.('a':'z'))
+AbsWord(tz::Vector{Int},P::Presentation)=AbsWord(tz,gens(P))
 
 function Base.show(io::IO,a::AbsWord)
   if isone(a) print(io,".") end
@@ -488,7 +492,7 @@ Base.copy(P::Presentation)=Presentation(copy(P.generators),
 
 Groups.gens(P::Presentation)=P.generators
 Groups.ngens(P::Presentation)=length(P.generators)
-(P::Presentation)(l::Int...)=isempty(l) ? AbsWord() : AbsWord(collect(l),gens(P))
+(P::Presentation)(l::Int...)=isempty(l) ? AbsWord() : AbsWord(collect(l),P)
 
 " `relators(P::Presentation)` return the relators of `P` as `AbsWord`s. "
 relators(P::Presentation)=AbsWord.(P.relators,Ref(gens(P)))
@@ -692,6 +696,7 @@ function Base.dump(T::Presentation)
   if length(l1)>0 print(" involutions:");join(rio(),gens(T)[l1],",") end
   println(" modified=",T.modified," numredunds=",T.numredunds)
   if l1!=l display(stack(map(i->[gens(T)[i],T[i],T[-i]],l))) end
+  println(T.inverses)
 end
 
 """
@@ -861,7 +866,7 @@ generator  with the larger  number is substituted  by the other  one in all
 relators and finally eliminated from the set of generators.
 """
 function HandleLength1Or2Relators(T::Presentation)
-  dump(T)
+# dump(T)
   debug(T,3,"Handle length 1 or 2 relators")
   gens=T.generators
   rels=T.relators
@@ -872,53 +877,53 @@ function HandleLength1Or2Relators(T::Presentation)
     while i<length(T.relators)
       i+=1
       lg=length(rels[i])
-      if 0<lg<=2 && T.flags[i]<=2
-        rep1=T[rels[i][1]]
-        if lg==1
-          rep1=abs(rep1)
-          if rep1>T.protected
-            if T[rep1]==rep1 T.numredunds+=1 end
-            T[rep1]=T[-rep1]=0
-            debug(T,2,"Handle12 eliminating ",gens[rep1]," redund=",T.numredunds)
-            UpdateGeneratorImages(T, rep1, Int[])
+      if !(lg in (1,2)) || T.flags[i]>2 continue end
+      rep1=T[rels[i][1]]
+      if lg==1
+        rep1=abs(rep1)
+        if rep1>T.protected
+          if T[rep1]==rep1 T.numredunds+=1 end
+          T[rep1]=T[-rep1]=0
+          debug(T,2,"Handle12 eliminating ",gens[rep1]," redund=",T.numredunds)
+          UpdateGeneratorImages(T, rep1, Int[])
+          done=false
+        end
+      else
+        rep2=T[rels[i][2]]
+        if abs(rep2)<abs(rep1) rep1,rep2=rep2,rep1 end
+        if rep1<0 rep1,rep2=(-rep1,-rep2) end
+        if rep1==0 # already eliminated
+          rep2=abs(rep2)
+          if rep2>T.protected
+            if T[rep2]==rep2 T.numredunds+=1 end
+            T[rep2]=T[-rep2]=0
+            debug(T,2,"Handle12 eliminating ",gens[rep2]," redund=",T.numredunds)
+            UpdateGeneratorImages(T, rep2, Int[])
             done=false
           end
-        else
-          rep2=T[rels[i][2]]
-          if abs(rep2)<abs(rep1) rep1,rep2=rep2,rep1 end
-          if rep1<0 rep1,rep2=(-rep1,-rep2) end
-          if rep1==0 # already eliminated
-            rep2=abs(rep2)
-            if rep2>T.protected
-              if T[rep2]==rep2 T.numredunds+=1 end
-              T[rep2]=T[-rep2]=0
-              debug(T,2,"Handle12 eliminating ",gens[rep2]," redund=",T.numredunds)
-              UpdateGeneratorImages(T, rep2, Int[])
-              done=false
-            end
-          elseif rep1!=-rep2  # otherwise not reduced
-            if rep1!=rep2 # not an involution
-              if T[rep2]==T[-rep2] && T[-rep1]<0 # rep2^2=1 => rep1^2=1
-                push!(rels,[rep1, rep1])
-                push!(T.flags,3)
-              end
-              if abs(rep2)>T.protected
-                if T[rep2]==rep2 T.numredunds+=1 end
-                T[rep2]=T[-rep1];T[-rep2]=rep1
-                if haskey(T,:imagesOldGens) || T.debug>=2
-                  if rep2>0 rep1=T[-rep1] end
-                  debug(T,2,"Handle12 eliminating ",gens[abs(rep2)],"=",
-                      alphab([rep1],T.generators)," redund=",T.numredunds)
-                  UpdateGeneratorImages(T,abs(rep2),[rep1])
-                end
-                done=false
-              end
-            elseif T[-rep1]<0  # an involution not yet detected
-              rels[i]=[rep1,rep1]
-              T.flags[i]=3
+        elseif rep1!=-rep2  # otherwise not reduced
+          if rep1!=rep2 # not an involution
+            if T[rep2]==T[-rep2] && T[-rep1]<0 # rep2^2=1 => rep1^2=1
+              push!(rels,[rep1, rep1])
+              push!(T.flags,3)
               T[-rep1]=rep1
+            end
+            if abs(rep2)>T.protected
+              if T[rep2]==rep2 T.numredunds+=1 end
+              T[rep2]=T[-rep1];T[-rep2]=rep1
+              if haskey(T,:imagesOldGens) || T.debug>=2
+                if rep2>0 rep1=T[-rep1] end
+                debug(T,2,"Handle12 eliminating ",gens[abs(rep2)],"=",
+                    alphab([rep1],T.generators)," redund=",T.numredunds)
+                UpdateGeneratorImages(T,abs(rep2),[rep1])
+              end
               done=false
             end
+          elseif T[-rep1]<0  # an involution not yet detected
+            rels[i]=[rep1,rep1]
+            T.flags[i]=3
+            T[-rep1]=rep1
+            done=false
           end
         end
       end
@@ -929,14 +934,14 @@ function HandleLength1Or2Relators(T::Presentation)
       end
 # the next loop is FunTzReplaceGens
       for i in eachindex(T.relators)
-       if length(T.relators[i])==2 && T.flags[i]==3 && abs(T[T.relators[i][1]])== abs(T.relators[i][1])continue end#don't remove involutions
+        if length(T.relators[i])==2 && T.flags[i]==3 && abs(T[T.relators[i][1]])== abs(T.relators[i][1])continue end#don't remove involutions
         T.relators[i]=reduceword(T.relators[i],T)
         T.flags[i]=1
       end
     end
   end
   if T.numredunds>0 RemoveGenerators(T) end
-  dump(T)
+# dump(T)
 end
 
 """
@@ -2382,7 +2387,7 @@ function SearchC(T::Presentation,i,j,equal=false)
   for k in i:length(rels)
     rel=rels[k]
     if length(rel)<lmin continue end # sort should be called before SearchC
-    rel=reduceword(rel,T)
+    if length(rel)!=2 || rel[1]!=rel[2] rel=reduceword(rel,T) end
     while true
       hk=map(u->(hash=hashword(rel,u,l,T),pos=u),eachindex(rel))
       sort!(hk,by=x->x.hash)
@@ -2397,9 +2402,9 @@ function SearchC(T::Presentation,i,j,equal=false)
 #     if l1<l println("!!!!hash",hk) end
       if l1<l error("!")
       else
-#      print(rio(),"$k:",AbsWord(rel,gens(T)),"+$w:(",AbsWord(rels[w],gens(T)),")$pos1:$pos2($l1)")
+#      print(rio(),"$k:",AbsWord(rel,T),"[$pos2:$(pos2+l1-1)]->$w:",AbsWord(rels[w],T),"\\[$pos1:$(pos1+l1-1)]")
         rel=doreplace(rels[w],rel,pos1,pos2,l1)
-#       println(rio(),"=>",AbsWord(rel,gens(T)))
+#       println(rio(),"=>",AbsWord(rel,T))
       end
       rel=reduceword(rel,T)
 #     println("=>",alphab(rel))
@@ -2518,7 +2523,8 @@ function Search(P::Presentation)
 #       @show T.flags,i,j
         altered=SearchC(T,i,j)
         if !isempty(altered)
-          debug(P,3,"SearchC($i,$j): ",length(altered)," altered")
+          debug(P,3,"SearchC($i,$j): ",altered," altered")
+#         dump(P)
           modified=true
           T.flags[altered]=map(x->x==3 ? x : 2,T.flags[altered])
  #        @show T.flags,altered
@@ -3028,7 +3034,7 @@ function Substitute(P::Presentation,word::Union{Vector{Int},AbsWord},s::Symbol=
   gens=P.generators
   if word isa Vector
     tzword=reduceword(word)
-    word=AbsWord(tzword, gens)
+    word=AbsWord(tzword,P)
   else
     tzword=TietzeWord(word, gens)
   end
@@ -3239,7 +3245,7 @@ function images(P::Presentation)
   end
   println("old generators in terms of the current ones:")
   for i in eachindex(P.oldGenerators) println(rio(),"  ",P.oldGenerators[i],"=",
-         AbsWord(P.imagesOldGens[i],P.generators))
+         AbsWord(P.imagesOldGens[i],P))
   end
 end
 
