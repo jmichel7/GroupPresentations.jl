@@ -89,8 +89,8 @@ permutations of the cosets induced by the generators, or `nothing` if the
 enumeration does not close within the limits (the group may be infinite).
 """
 function toddcoxeter(rels::Vector{Vector{Int}},
-                     ngens=maximum(map(x->maximum(abs.(x)),rels));
-                     maxcosets::Int=1000, maxpasses::Int=1000)
+         ngens=maximum(x->maximum(abs.(x),init=0),rels;init=0);
+         maxcosets::Int=1000, maxpasses::Int=1000)
   t = TC(ngens, [reduceword(r) for r in rels], [zeros(Int, 2ngens)], [1], [1],
          maxcosets)
   # an empty relator is the identity: nothing to enumerate

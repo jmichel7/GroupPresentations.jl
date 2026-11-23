@@ -45,7 +45,7 @@ generator  numbers which  we call  *Tietze words*.  Here is another example
 with a few functions to explore presentations.
 
 ```julia-repl
-julia> @AbsWord a,b 
+julia> @AbsWord a,b
 
 julia> F=FpGroup([a,b])
 FreeGroup(a,b)
@@ -159,7 +159,7 @@ module GroupPresentations
 #arguments of function calls. Instead, they are stored in the presentation.
 rio(io::IO=stdout;p...)=IOContext(io,:limit=>true,p...)
 function stringind(io::IO,n::Integer)
-  if get(io,:TeX,false) 
+  if get(io,:TeX,false)
     n in 0:9 ? "_"*string(n) : "_{"*string(n)*"}"
   elseif get(io,:limit,false)
     if n<0 res=['₋']; n=-n else res=Char[] end
@@ -173,7 +173,7 @@ const supvec=collect("⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
 
 function stringexp(io::IO,n::Integer)
   if isone(n) ""
-  elseif get(io,:TeX,false) 
+  elseif get(io,:TeX,false)
     n in 0:9 ? "^"*string(n) : "^{"*string(n)*"}"
   elseif get(io,:limit,false)
     if n==-1 return "⁻" end
@@ -186,7 +186,7 @@ end
 
 using PermGroups
 using Combinat: tally
-export AbsWord, @AbsWord, Presentation, FpGroup, Go, GoGo, conjugate, 
+export AbsWord, @AbsWord, Presentation, FpGroup, Go, GoGo, conjugate,
        tryconjugate, simplify, relators, display_balanced, tracing, images,
        showgens, showpairs
 
@@ -224,7 +224,7 @@ julia> AbsWord(:b,:a,:a,:b)
 ba²b
 ```
 """
-struct AbsWord 
+struct AbsWord
   d::Vector{Pair{Symbol,Int}}
   function AbsWord(v::Vector{Pair{Symbol,Int}};check=true)
     if check && length(v)>0
@@ -234,7 +234,7 @@ struct AbsWord
           ri+=1
           v[ri]=v[i]
         else c=last(v[ri])+last(v[i])
-          if iszero(c) && ri>0 ri-=1 
+          if iszero(c) && ri>0 ri-=1
           else v[ri]=first(v[ri])=>c
           end
         end
@@ -248,7 +248,7 @@ end
 AbsWord(x::Symbol...)=isempty(x) ? AbsWord("") : AbsWord([s=>1 for s in x])
 
 "`@AbsWord x,y` define `AbsWord`s. The same as `x=AbsWord(:x);y=AbsWord(y)`"
-macro AbsWord(t) 
+macro AbsWord(t)
   if t isa Expr
     for v in t.args
       Base.eval(Main,:($v=AbsWord($(Core.QuoteNode(Symbol(v))))))
@@ -333,7 +333,6 @@ a⁻b⁻ac⁻²
 AbsWord(tz::Vector{Int},gens::Vector{AbsWord})=AbsWord(tz,mon.(gens))
 AbsWord(tz::Vector{Int},ss::Vector{Symbol})=AbsWord(map(i->ss[abs(i)]=>sign(i),tz))
 AbsWord(tz::Vector{Int})=AbsWord(tz,Symbol.('a':'z'))
-AbsWord(tz::Vector{Int},P::Presentation)=AbsWord(tz,gens(P))
 
 function Base.show(io::IO,a::AbsWord)
   if isone(a) print(io,".") end
@@ -398,7 +397,7 @@ function Groups.word(G::FpGroup,w::AbsWord)
   for (s,m) in w.d
     p=findfirst(x->x.d[1][1]==s,gens(G))
     if isnothing(p) error(w," is not a word for ",G) end
-    for i in 1:abs(m) 
+    for i in 1:abs(m)
       res[x]=m<0 ? -p : p
       x+=1
     end
@@ -411,7 +410,7 @@ function Base.length(F::FpGroup)
     if isempty(F.rels) error("infinite") end
     m=Base.get_extension(GroupPresentations,:Gap4GP)
     if isnothing(m)
-      error("'length' needs GAP; do 'using GAP' to make extension available") 
+      error("'length' needs GAP; do 'using GAP' to make extension available")
     end
     m.length(F)
   end
@@ -421,7 +420,7 @@ function Groups.elements(F::FpGroup)
   get!(g,:elements)do
     m=Base.get_extension(GroupPresentations,:Gap4GP)
     if isnothing(m)
-      error("'elements' needs GAP; do 'using GAP' to make extension available") 
+      error("'elements' needs GAP; do 'using GAP' to make extension available")
     end
     m.elements(F)
   end
@@ -486,10 +485,13 @@ end
 # expandLimit, generatorsLimit, lengthLimit, loopLimit, debug,
 # saveLimit, searchSimultaneous, protected, status
 
+AbsWord(tz::Vector{Int},P::Presentation)=AbsWord(tz,gens(P))
+
 Base.copy(P::Presentation)=Presentation(copy(P.generators),
  copy(P.inverses),copy(copy.(P.relators)),copy(P.flags),P.modified,
  P.numredunds,copy(P.prop))
 
+totallength(P::Presentation)=sum(length,P.relators;init=0)
 Groups.gens(P::Presentation)=P.generators
 Groups.ngens(P::Presentation)=length(P.generators)
 (P::Presentation)(l::Int...)=isempty(l) ? AbsWord() : AbsWord(collect(l),P)
@@ -595,7 +597,7 @@ function Presentation(v::Vector{Vector{Int}};debug=1)
       map(i->Symbol("x",stringind(rio(),i)),1:length(gens))
   Presentation(AbsWord.(vars),map(r->AbsWord(r,vars),v);debug)
 end
-  
+
 Base.getindex(T::Presentation,i)=T.inverses[ngens(T)+1-i]
 Base.setindex!(T::Presentation,j,i)=T.inverses[ngens(T)+1-i]=j
 
@@ -612,7 +614,7 @@ function reduceword(w::Vector{Int};cyclically=false)
   if cyclically while b<e && res[b]==-res[e] b+=1;e-=1 end end
   res[b:e]
 end
-   
+
 # reduce cyclically a Tietze word using the table of inverses
 function reduceword(w::Vector{Int},T::Presentation)
   i=1;
@@ -668,8 +670,7 @@ the last call.
 """
 function PrintStatus(P::Presentation,debug=0)
   if P.debug<debug return end
-  status=[ngens(P)-P.numredunds, length(P.relators), 
-          sum(length,P.relators;init=0)]
+  status=[ngens(P)-P.numredunds, length(P.relators),totallength(P)]
   if !haskey(P,:status) || status!=P.status
     P.status=status
     show(stdout,P)
@@ -681,8 +682,7 @@ function Base.show(io::IO, p::Presentation)
   print(io,"Presentation")
   if haskey(p,:name) print(io," ",p.name) end
   print(io,": ",plural(ngens(p)-p.numredunds,"generator"),
-        ", ",plural(length(p.relators),"relator")," of total length ",
-        sum(length,p.relators;init=0))
+   ", ",plural(length(p.relators),"relator")," of total length ",totallength(p))
 end
 
 function Base.dump(T::Presentation)
@@ -1174,11 +1174,11 @@ function RelsViaCosetTable(G,cosets,arg...)
 end
 
 function Ignore end
-if !@isdefined InfoFpGroup1 
-  InfoFpGroup1=Ignore 
+if !@isdefined InfoFpGroup1
+  InfoFpGroup1=Ignore
 end
-if !@isdefined InfoFpGroup2 
-  InfoFpGroup2=Ignore 
+if !@isdefined InfoFpGroup2
+  InfoFpGroup2=Ignore
 end
 
 """
@@ -1281,7 +1281,7 @@ Presentation: 6 generators, 12 relators of total length 42
     gap> simplify( P );
     &I  there are 4 generators and 10 relators of total length 36 |
 
-PresentationViaCosetTable(G[,F,words]) . . . . .  
+PresentationViaCosetTable(G[,F,words]) . . . . .
 construct a presentation for the given group
 
 `PresentationViaCosetTable`   constructs   a  presentation  for  a  given
@@ -1549,7 +1549,7 @@ resulting total length of the relators cannot be guaranteed to not exceed
 the parameter P.lengthLimit (if !=0).
 """
 function EliminateGen(P::Presentation, num::Int)
-  spacelimit=sum(length,P.relators)+P.lengthLimit
+ spacelimit=totallength(P)+P.lengthLimit
   P.modified=false
   if !(num in eachindex(P.generators))
     error("EliminateGen: second argument is not a valid generator number")
@@ -1558,7 +1558,7 @@ function EliminateGen(P::Presentation, num::Int)
   if occMult==1
     lg=length(P.relators[occRelNum])
     space=(occTotal-1)*(lg-1)-lg
-    if P.lengthLimit!=0 && sum(length,P.relators)+space>spacelimit return end
+    if P.lengthLimit!=0 && totallength(P)+space>spacelimit return end
     gen=num
     rel=P.relators[occRelNum]
     pos=findfirst(==(gen),rel)
@@ -1570,7 +1570,7 @@ function EliminateGen(P::Presentation, num::Int)
     debug(P,2,"EliminateGen eliminating ", P.generators[num], "=",
          let a=gen>0 ? -reverse(word) : word;  alphab(word,P.generators) end)
     SubstituteGen(P,-gen, word)
-    P[num]=0
+    P[num]=P[-num]=0
     P.numredunds+=1
     P.modified=true
   end
@@ -1590,7 +1590,7 @@ function Occurrences(T::Presentation)
     occ+=lococc
     for i in eachindex(T.generators)
       if lococc[i]==0 continue end
-      if mult[i]==0 || lococc[i]<mult[i] || 
+      if mult[i]==0 || lococc[i]<mult[i] ||
         (lococc[i]==mult[i] && length(T.relators[j])<length(T.relators[min[i]]))
           min[i]=j
           mult[i]=lococc[i]
@@ -1644,7 +1644,7 @@ function EliminateGen1(T::Presentation)
     debug(T,2,"EliminateGen1 eliminating ",T.generators[num],"=",
       let a=gen>0 ? -reverse(word) : word;  alphab(word,T.generators) end)
     SubstituteGen(T, -gen, word)
-    T[num]=0
+    T[num]=T[-num]=0
     T.numredunds+=1
     modified=true
   end
@@ -1669,15 +1669,15 @@ the function will not eliminate any protected generators.
 function EliminateGens(P::Presentation)
   debug(P,3,"EliminateGens eliminating generators")
   redundantsLimit=5
-  bound=sum(length,P.relators)*P.expandLimit//100
+  bound=totallength(P)*P.expandLimit//100
   modified=false
   P.modified=true
   num=0
-  while P.modified && num<P.eliminationsLimit && sum(length,P.relators)<=bound &&
+  while P.modified && num<P.eliminationsLimit && totallength(P)<=bound &&
    length(P.generators)-P.numredunds>P.generatorsLimit
     EliminateGen1(P)
 #   print("a ");PrintStatus(P);@show P.flags
-    if P.numredunds==redundantsLimit 
+    if P.numredunds==redundantsLimit
       RemoveGenerators(P)
 #     print("b ");PrintStatus(P);@show P.flags
     end
@@ -1685,7 +1685,7 @@ function EliminateGens(P::Presentation)
     num+=1
   end
   P.modified=modified
-  if P.numredunds>0 
+  if P.numredunds>0
     RemoveGenerators(P)
 #   print("c ");PrintStatus(P);@show P.flags
   end
@@ -1956,7 +1956,7 @@ five consecutive calls of `Go`.
 function GoGo(T::Presentation)
   numgens=length(T.generators)
   numrels=length(T.relators)
-  total=sum(length,T.relators;init=0)
+  total=totallength(T)
   silentGo=T.debug==1
   count=0
   while count<5
@@ -1965,11 +1965,11 @@ function GoGo(T::Presentation)
     if silentGo && (length(T.generators)<numgens || length(T.relators)<numrels)
         PrintStatus(T)
     end
-    if length(T.generators)<numgens || length(T.relators)<numrels || 
-      sum(length,T.relators;init=0)<total
+    if length(T.generators)<numgens || length(T.relators)<numrels ||
+      totallength(T)<total
       numgens=length(T.generators)
       numrels=length(T.relators)
-      total=sum(length,T.relators;init=0)
+      total=totallength(T)
       count=0
     end
   end
@@ -2044,7 +2044,7 @@ function MostFrequentPairs(T::Presentation, nmax::Int)
           end
         end
       end
-      if nmax!=0 && n>nmax 
+      if nmax!=0 && n>nmax
         sort!(pairs,rev=true)
         resize!(pairs,nmax)
         n=nmax
@@ -2074,7 +2074,7 @@ presentation `P`.
 
 The Tietze options have the following meaning.
 
-`protected`: 
+`protected`:
   The  first `P.protected` generators  in a presentation  `P` are protected
   from  being eliminated by the Tietze transformations functions. There are
   only two exceptions: The option `P.protected` is ignored by the functions
@@ -2082,7 +2082,7 @@ The Tietze options have the following meaning.
   explicitly  specify the generator to be  eliminated. The default value of
   `protected` is 0.
 
-`eliminationsLimit`: 
+`eliminationsLimit`:
   Whenever  the  elimination  phase  of  the  `Go` command is entered for a
   presentation  `P`, then  it will  eliminate at most `P.eliminationsLimit`
   generators (except for further ones which have turned out to be trivial).
@@ -2090,7 +2090,7 @@ The Tietze options have the following meaning.
   for  the  `Go`  command.  Note,  however,  that  it  is  ignored  by  the
   `Eliminate` command. The default value of `eliminationsLimit` is 100.
 
-`expandLimit`: 
+`expandLimit`:
   Whenever the routine for eliminating more than 1 generators is called for
   a presentation `P` by the `Eliminate` command or the elimination phase of
   the  `Go` command, then it saves the  given total length of the relators,
@@ -2101,26 +2101,26 @@ The Tietze options have the following meaning.
   `expandLimit`  parameter as a  break criterion for  the `Go` command. The
   default value of `expandLimit` is 150.
 
-`generatorsLimit`: 
+`generatorsLimit`:
   Whenever  the  elimination  phase  of  the  `Go` command is entered for a
   presentation  `P` with  `n` generators,  then it  will eliminate  at most
   `n-P.generatorsLimit` generators (except for generators which turn out to
   be trivial). Hence you may use the `generatorsLimit` parameter as a break
   criterion for the `Go` command. The default `generatorsLimit` is 0.
 
-`lengthLimit`: 
+`lengthLimit`:
   The  Tietze transformation commands will never eliminate a generator of a
   presentation  `P`,  if  they  cannot  exclude  the  possibility  that the
   resulting   total   length   of   the   relators  exceeds  the  value  of
   `P.lengthLimit`. The default value of `lengthLimit` is `infinity`.
 
-`loopLimit`: 
+`loopLimit`:
   Whenever  the `Go` command is called for a presentation `P`, then it will
   loop over at most `P.loopLimit` of its basic steps. Hence you may use the
   `loopLimit`  parameter as  a break  criterion for  the `Go`  command. The
   default value of `loopLimit` is `infinity`.
 
-`debug`: 
+`debug`:
   Whenever Tietze transformation commands are called for a presentation `P`
   with  `P.debug` `= 0`, they will not  provide any output except for error
   messages. If `P.debug` `= 1`, they will display some reasonable amount of
@@ -2130,7 +2130,7 @@ The Tietze options have the following meaning.
   various  messages on internal details will be added. The default value of
   `debug` is 1.
 
-`saveLimit`: 
+`saveLimit`:
   Whenever  the  `Search`  command  has  finished  its  main  loop over all
   relators  of a presentation `P`, then  it checks whether during this loop
   the   total  length  of  the  relators  has  been  reduced  by  at  least
@@ -2140,7 +2140,7 @@ The Tietze options have the following meaning.
   particular,  for the search phase of  the `Go` command. The default value
   of `saveLimit` is 10.
 
-`searchSimultaneous`: 
+`searchSimultaneous`:
   Whenever  the  `Search`  or  the  `SearchEqual`  command  is called for a
   presentation `P`, then it is allowed to handle up to `searchSimultaneous`
   short  relators simultaneously (see  for the description  of the `Search`
@@ -2318,7 +2318,7 @@ function commonsorted(a,b;by=x->x)
   end
   res
 end
-  
+
 # perhaps w1[abs(i1)]*sign(i1)=w2[abs(i2)]*sign(i2), extend the match
 # as much as possible; returns (new i1, new i2, length of found match)
 function maxmatch(w1,i1,w2,i2,T)
@@ -2341,7 +2341,7 @@ function maxmatch(w1,i1,w2,i2,T)
   end
   (i1,i2,l)
 end
-   
+
 # cyclic subword of relator w starting at i and of length l; takes i mod
 # length(w) but remembers sign (positive: forward word, negative: -backward)
 function subword(w,i,l)
@@ -2385,6 +2385,7 @@ function SearchC(T::Presentation,i,j,equal=false)
 #                    T.inverses) end
   altered=Int[]
   for k in i:length(rels)
+    if T.flags[k]==3 continue end # keep involution witness
     rel=rels[k]
     if length(rel)<lmin continue end # sort should be called before SearchC
     if length(rel)!=2 || rel[1]!=rel[2] rel=reduceword(rel,T) end
@@ -2413,13 +2414,13 @@ function SearchC(T::Presentation,i,j,equal=false)
       if equal || length(rel)<l break end
     end
     if k<=j && length(rel) in lmin:lmax
-      for u in 1:length(rel) 
+      for u in 1:length(rel)
         push!(hh,(hash=hashword(rel,u,l,T),pos=u,relno=k))
         push!(hh,(hash=hashword(rel,-u,l,T),pos=-u,relno=k))
       end
       sort!(hh,by=x->x.hash)
     end
-    if rel!=rels[k] 
+    if rel!=rels[k]
       push!(altered,k)
       rels[k]=rel
     end
@@ -2493,10 +2494,10 @@ function Search(P::Presentation)
   rels=T.relators
   T.modified=false
   save=P.saveLimit//100
-  while sum(length,T.relators;init=0)>0
+  while totallength(T)>0
     sort!(P)
     modified=false
-    oldtotal=sum(length,T.relators)
+    oldtotal=totallength(T)
     flag=0
     for i in eachindex(T.relators)
       if T.flags[i]>1 || isempty(rels[i]) continue end
@@ -2534,7 +2535,7 @@ function Search(P::Presentation)
     end
     for i in eachindex(T.flags) if T.flags[i] in 1:2 T.flags[i]-=1 end end
     if modified
-     if sum(length,T.relators)<oldtotal
+     if totallength(T)<oldtotal
         T.modified=true
 #       print("in search avant handle");display_balanced(P)
         HandleLength1Or2Relators(P)
@@ -2576,7 +2577,7 @@ function SearchEqual(P::Presentation)
   sort!(P)
   rels=T.relators
   modified=false
-  oldtotal=sum(length,T.relators)
+  oldtotal=totallength(T)
   i=1
   while i<length(T.relators)
     leng=length(rels[i])
@@ -2609,7 +2610,7 @@ function SearchEqual(P::Presentation)
     i+=1
   end
   if modified
-   if sum(length,T.relators)<oldtotal
+   if totallength(T)<oldtotal
       T.modified=true
       HandleLength1Or2Relators(P)
       sort!(P)
@@ -2827,7 +2828,7 @@ Presentation: 23 generators, 74 relators of total length 461
 
 As shown in the preceding example, you can use the `copy` command to save
 a copy of a presentation and to restart from it  again if you want
-to try an alternative strategy.  
+to try an alternative strategy.
 """
 function Substitute(P::Presentation,n::Int=1,elim::Int=0)
   if !(0<=elim<=2) error("last argument must be 0, 1, or 2") end
@@ -3095,7 +3096,7 @@ again: if the above fields do already exist when `tracing` is being called,
 they will be initialized again.
 """
 function tracing(P::Presentation,nostop=true)
-  if !nostop 
+  if !nostop
     if !haskey(P, :imagesOldGens) return end
     delete!(P, :imagesOldGens)
     delete!(P, :preImagesNewGens)
@@ -3152,7 +3153,7 @@ function UpdateGeneratorImages(T::Presentation, n::Integer, word)
   end
   if !haskey(T,:preImagesNewGens) return end
   p=findall(x->x==n || x==-n, word)
-  if length(p)!=1 
+  if length(p)!=1
    if length(p)!=0 delete!(T,preImagesNewGens) end
     return
   end
@@ -3532,7 +3533,7 @@ julia> display_balanced(p)
 ```
 """
 function tryconjugate(p::Presentation;goal=[0,0],info=[0,0])
-  perf(p)=[length(p.relators), sum(length,p.relators;init=0)]
+  perf(p)=[length(p.relators), totallength(p)]
   function triples(p)
     res=Vector{Int}[]
     for v in p.relators, i in 1:length(v)-2
