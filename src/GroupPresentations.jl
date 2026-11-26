@@ -1871,13 +1871,11 @@ ones  accordingly. The  redundant generators  are assumed  to be  marked in
 """
 function RemoveGenerators(P::Presentation)
   debug(P,3,"RemoveGenerators renumbering the Tietze generators")
-  redunds=P.numredunds
-  if redunds==0 return end
-  gens=P.generators
-  numgens=length(P.generators)
+  if P.numredunds==0 return end
+  ngens=length(P.generators)
   j=0
 # @show j,P.inverses, P.numredunds
-  for i in 1:numgens
+  for i in 1:ngens
     if P[i]==i
       j+=1
       if j<i
@@ -1889,10 +1887,10 @@ function RemoveGenerators(P::Presentation)
     end
   end
 # @show j,P.inverses
-  if j!=numgens-redunds
-    error("j=$j numgens=$numgens redunds=$redunds. You should never get here.\n")
+  if j!=ngens-P.numredunds
+    error("j=$j ngens=$ngens redunds=$(P.numredunds). You should never get here.\n")
   end
-# @show j, P.inverses, numgens
+# @show j, P.inverses, ngens
   for rel in P.relators, i in eachindex(rel) rel[i]=P[rel[i]] end
   if haskey(P, :imagesOldGens)
     for i in 1:length(P.imagesOldGens)
@@ -1902,10 +1900,10 @@ function RemoveGenerators(P::Presentation)
       P.imagesOldGens[i]=reduceword(newim)
     end
   end
-  for i in 1:numgens
+  for i in 1:ngens
     j=P[i]
     if j<i && j>0
-      gens[j]=gens[i]
+      P.generators[j]=P.generators[i]
       P[j]=j
       P[-j]=P[-i]
       if haskey(P, :preImagesNewGens)
@@ -1913,12 +1911,12 @@ function RemoveGenerators(P::Presentation)
       end
     end
   end
-  j=numgens
-  numgens1=numgens+1
-  numgens-=redunds
-  P.inverses=P.inverses[numgens1-numgens:numgens1+numgens]
-  resize!(P.generators,numgens)
-  if haskey(P, :preImagesNewGens) resize!(P.preImagesNewGens,numgens) end
+  j=ngens
+  ngens1=ngens+1
+  ngens-=P.numredunds
+  P.inverses=P.inverses[ngens1.+(-ngens:ngens)]
+  resize!(P.generators,ngens)
+  if haskey(P, :preImagesNewGens) resize!(P.preImagesNewGens,ngens) end
   P.numredunds=0
 end
 
